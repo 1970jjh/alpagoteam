@@ -148,7 +148,19 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
           const teamPlayers = isMyTeam ? safeMyTeam.players : (Array.isArray(team.players) ? team.players : []);
           const scoringGroups = getScoringGroups(teamBoard);
 
-          // Debug info for my team
+          // Debug info for my team - show raw board data to trace the issue
+          const rawBoardType = typeof myTeam?.board;
+          const rawBoardIsArray = Array.isArray(myTeam?.board);
+          const rawBoardLength = rawBoardIsArray ? (myTeam?.board as any[]).length : 'N/A';
+          const rawBoardKeys = !rawBoardIsArray && myTeam?.board && typeof myTeam?.board === 'object'
+            ? Object.keys(myTeam?.board).join(',')
+            : 'N/A';
+
+          // Count cells with different values
+          const nullCells = teamBoard.filter(c => c === null).length;
+          const undefinedCells = teamBoard.filter(c => c === undefined).length;
+          const falsyCells = teamBoard.filter(c => !c && c !== 0).length;
+
           const debugInfo = {
             isMyTeam,
             myTeamNum,
@@ -156,7 +168,15 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
             currentNum: game.currentNumber,
             hasPlaced: safeMyTeam.hasPlacedCurrentNumber,
             gameEnded: game.gameEnded,
-            emptyCells: teamBoard.filter(c => c === null).length
+            emptyCells: nullCells,
+            rawBoardType,
+            rawBoardIsArray,
+            rawBoardLength,
+            rawBoardKeys,
+            undefinedCells,
+            falsyCells,
+            // Show first 5 board values to check data
+            boardSample: teamBoard.slice(0, 5).map(v => v === null ? 'NULL' : v === undefined ? 'UNDEF' : v).join(',')
           };
 
           return (
@@ -166,8 +186,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
                 <div className="mb-2 p-2 bg-red-900/80 text-white text-[10px] font-mono rounded border border-red-500">
                   <div>🔍 DEBUG: isMyTeam={String(debugInfo.isMyTeam)} | myTeamNum={debugInfo.myTeamNum} | teamNum={debugInfo.teamNum}</div>
                   <div>currentNum={String(debugInfo.currentNum)} (type:{typeof debugInfo.currentNum}) | hasPlaced={String(debugInfo.hasPlaced)} | gameEnded={String(debugInfo.gameEnded)}</div>
-                  <div>emptyCells={debugInfo.emptyCells} | canInteract조건: {debugInfo.isMyTeam && debugInfo.currentNum !== null && !debugInfo.hasPlaced && !debugInfo.gameEnded ? '✅ OK' : '❌ FAIL'}</div>
-                  <div>safeMyTeam.teamNumber={safeMyTeam.teamNumber} | props myTeam.teamNumber={String(myTeam?.teamNumber)}</div>
+                  <div>emptyCells(null)={debugInfo.emptyCells} | undef={debugInfo.undefinedCells} | falsy={debugInfo.falsyCells}</div>
+                  <div>rawBoard: type={debugInfo.rawBoardType} | isArr={String(debugInfo.rawBoardIsArray)} | len={debugInfo.rawBoardLength} | keys={debugInfo.rawBoardKeys}</div>
+                  <div>boardSample[0-4]: {debugInfo.boardSample}</div>
+                  <div>canInteract조건: {debugInfo.isMyTeam && debugInfo.currentNum !== null && !debugInfo.hasPlaced && !debugInfo.gameEnded ? '✅ OK' : '❌ FAIL'}</div>
                 </div>
               )}
               <div className="flex items-center justify-between mb-2 px-1">
