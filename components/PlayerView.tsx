@@ -15,11 +15,11 @@ interface PlayerViewProps {
 export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, onPlaceNumber }) => {
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
 
-  // Safety: Ensure myTeam has all required properties
+  // Safety: Ensure myTeam has all required properties (Firebase may return objects instead of arrays)
   const safeMyTeam = {
     ...myTeam,
-    players: myTeam?.players || [],
-    board: myTeam?.board || Array(20).fill(null),
+    players: Array.isArray(myTeam?.players) ? myTeam.players : [],
+    board: Array.isArray(myTeam?.board) ? myTeam.board : Array(20).fill(null),
     teamNumber: myTeam?.teamNumber ?? 1,
     score: myTeam?.score ?? 0,
     hasPlacedCurrentNumber: myTeam?.hasPlacedCurrentNumber ?? false,
@@ -30,12 +30,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
     setPendingIndex(null);
   }, [game.currentRound, safeMyTeam.hasPlacedCurrentNumber]);
 
-  // Ensure all teams have players and board arrays (Firebase doesn't store empty arrays)
-  const gameTeams = game.teams || [];
+  // Ensure all teams have players and board arrays (Firebase may return objects instead of arrays)
+  const gameTeams = Array.isArray(game.teams) ? game.teams : [];
   const safeTeams = gameTeams.map(t => ({
     ...t,
-    players: t.players || [],
-    board: t.board || Array(20).fill(null)
+    players: Array.isArray(t.players) ? t.players : [],
+    board: Array.isArray(t.board) ? t.board : Array(20).fill(null)
   }));
 
   const sortedTeams = [...safeTeams].sort((a, b) => {
@@ -138,8 +138,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
 
         {sortedTeams.map((team) => {
           const isMyTeam = team.teamNumber === safeMyTeam.teamNumber;
-          const teamBoard = team.board || Array(20).fill(null);
-          const teamPlayers = team.players || [];
+          const teamBoard = Array.isArray(team.board) ? team.board : Array(20).fill(null);
+          const teamPlayers = Array.isArray(team.players) ? team.players : [];
           const scoringGroups = getScoringGroups(teamBoard);
           
           return (
