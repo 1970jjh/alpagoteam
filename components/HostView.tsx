@@ -12,8 +12,10 @@ interface HostViewProps {
 }
 
 export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectNumber }) => {
-  // Ensure players array exists (Firebase doesn't store empty arrays)
-  const safeTeams = game.teams.map(t => ({
+  // Ensure all arrays exist (Firebase doesn't store empty arrays)
+  const gameTeams = game.teams || [];
+  const safeUsedCardIndices = game.usedCardIndices || [];
+  const safeTeams = gameTeams.map(t => ({
     ...t,
     players: t.players || [],
     board: t.board || Array(20).fill(null)
@@ -45,7 +47,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
     
     // Find all available indices (0-39) that are NOT in game.usedCardIndices
     const availableIndices = FULL_DECK.map((_, idx) => idx).filter(
-      idx => !game.usedCardIndices.includes(idx)
+      idx => !safeUsedCardIndices.includes(idx)
     );
 
     if (availableIndices.length === 0) return;
@@ -197,7 +199,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
 
                        <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar grid grid-cols-5 gap-1 content-start">
                          {FULL_DECK.map((val, idx) => {
-                           const isUsed = game.usedCardIndices.includes(idx);
+                           const isUsed = safeUsedCardIndices.includes(idx);
                            const isSelected = pendingSelection?.idx === idx;
                            
                            return (

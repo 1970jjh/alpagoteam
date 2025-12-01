@@ -20,7 +20,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
   }, [game.currentRound, myTeam.hasPlacedCurrentNumber]);
 
   // Ensure all teams have players and board arrays (Firebase doesn't store empty arrays)
-  const safeTeams = game.teams.map(t => ({
+  const gameTeams = game.teams || [];
+  const safeTeams = gameTeams.map(t => ({
     ...t,
     players: t.players || [],
     board: t.board || Array(20).fill(null)
