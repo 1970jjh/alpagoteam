@@ -156,6 +156,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
             ? Object.keys(myTeam?.board).join(',')
             : 'N/A';
 
+          // Compare myTeam.board (prop) vs game.teams board
+          const gameTeamBoard = game.teams?.[Number(myTeam?.teamNumber) - 1]?.board;
+          const boardsMatch = JSON.stringify(myTeam?.board) === JSON.stringify(gameTeamBoard);
+
           // Count cells with different values
           const nullCells = teamBoard.filter(c => c === null).length;
           const undefinedCells = teamBoard.filter(c => c === undefined).length;
@@ -175,8 +179,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
             rawBoardKeys,
             undefinedCells,
             falsyCells,
-            // Show first 5 board values to check data
-            boardSample: teamBoard.slice(0, 5).map(v => v === null ? 'NULL' : v === undefined ? 'UNDEF' : v).join(',')
+            boardsMatch,
+            // Show first 5 and last 5 board values to check data
+            boardStart: teamBoard.slice(0, 5).map(v => v === null ? 'N' : v === undefined ? 'U' : v).join(','),
+            boardEnd: teamBoard.slice(15, 20).map(v => v === null ? 'N' : v === undefined ? 'U' : v).join(',')
           };
 
           return (
@@ -187,8 +193,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
                   <div>🔍 DEBUG: isMyTeam={String(debugInfo.isMyTeam)} | myTeamNum={debugInfo.myTeamNum} | teamNum={debugInfo.teamNum}</div>
                   <div>currentNum={String(debugInfo.currentNum)} (type:{typeof debugInfo.currentNum}) | hasPlaced={String(debugInfo.hasPlaced)} | gameEnded={String(debugInfo.gameEnded)}</div>
                   <div>emptyCells(null)={debugInfo.emptyCells} | undef={debugInfo.undefinedCells} | falsy={debugInfo.falsyCells}</div>
-                  <div>rawBoard: type={debugInfo.rawBoardType} | isArr={String(debugInfo.rawBoardIsArray)} | len={debugInfo.rawBoardLength} | keys={debugInfo.rawBoardKeys}</div>
-                  <div>boardSample[0-4]: {debugInfo.boardSample}</div>
+                  <div>rawBoard: type={debugInfo.rawBoardType} | isArr={String(debugInfo.rawBoardIsArray)} | len={debugInfo.rawBoardLength} | propsMatch={String(debugInfo.boardsMatch)}</div>
+                  <div>board[0-4]:{debugInfo.boardStart} [15-19]:{debugInfo.boardEnd}</div>
                   <div>canInteract조건: {debugInfo.isMyTeam && debugInfo.currentNum !== null && !debugInfo.hasPlaced && !debugInfo.gameEnded ? '✅ OK' : '❌ FAIL'}</div>
                 </div>
               )}
