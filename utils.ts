@@ -5,6 +5,43 @@ import { GameState, Team } from './types';
 // LOGIC PORTED FROM GOOGLE APPS SCRIPT
 // ==========================================
 
+// Helper: Convert Firebase object/array to proper array
+// Firebase may return {0: val, 2: val} instead of [val, null, val]
+export const toSafeArray = <T>(data: T[] | Record<string, T> | undefined | null, defaultLength: number, defaultValue: T): T[] => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (data && typeof data === 'object') {
+    // Convert object to array
+    const result: T[] = Array(defaultLength).fill(defaultValue);
+    Object.keys(data).forEach(key => {
+      const idx = parseInt(key, 10);
+      if (!isNaN(idx) && idx >= 0 && idx < defaultLength) {
+        result[idx] = (data as Record<string, T>)[key];
+      }
+    });
+    return result;
+  }
+  return Array(defaultLength).fill(defaultValue);
+};
+
+// Helper for board arrays (20 cells)
+export const toSafeBoard = (board: (number | string | null)[] | Record<string, number | string | null> | undefined | null): (number | string | null)[] => {
+  return toSafeArray(board, 20, null);
+};
+
+// Helper for generic arrays
+export const toSafeArrayGeneric = <T>(data: T[] | Record<string, T> | undefined | null): T[] => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (data && typeof data === 'object') {
+    // Convert object to array (for players, teams, etc.)
+    return Object.values(data);
+  }
+  return [];
+};
+
 export const generateGameId = (companyName: string) => {
   return companyName.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 };
@@ -130,8 +167,8 @@ export const getScoringIndices = (board: (number | string | null)[]) => {
 }
 
 export const checkGameEnd = (gameData: GameState) => {
-  const safeTeams = Array.isArray(gameData.teams) ? gameData.teams : [];
-  const teamsWithPlayers = safeTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
+  const safeTeams = toSafeArrayGeneric(gameData.teams);
+  const teamsWithPlayers = safeTeams.filter(t => toSafeArrayGeneric(t.players).length > 0);
 
   // 20 rounds complete
   if (gameData.currentRound >= 20) {
@@ -141,7 +178,7 @@ export const checkGameEnd = (gameData: GameState) => {
   // All active boards full
   let allBoardsFull = true;
   for (let i = 0; i < teamsWithPlayers.length; i++) {
-    const board = Array.isArray(teamsWithPlayers[i].board) ? teamsWithPlayers[i].board : Array(20).fill(null);
+    const board = toSafeBoard(teamsWithPlayers[i].board);
     for (let j = 0; j < board.length; j++) {
       if (board[j] === null) {
         allBoardsFull = false;
@@ -155,13 +192,13 @@ export const checkGameEnd = (gameData: GameState) => {
 };
 
 export const calculateFinalRanking = (gameData: GameState) => {
-  const safeTeams = Array.isArray(gameData.teams) ? gameData.teams : [];
+  const safeTeams = toSafeArrayGeneric(gameData.teams);
   const teamsWithPlayers = safeTeams
-    .filter(t => (Array.isArray(t.players) ? t.players : []).length > 0)
+    .filter(t => toSafeArrayGeneric(t.players).length > 0)
     .map(t => ({
       teamNumber: t.teamNumber,
       score: t.score,
-      players: Array.isArray(t.players) ? t.players : []
+      players: toSafeArrayGeneric(t.players)
     }));
   
   // Sort by score descending

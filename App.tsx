@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, AppContextState, Team, Player, UserSession, Member, AccessLog } from './types';
-import { createFullDeck, calculatePlayerScore, checkGameEnd, generateGameId, calculateFinalRanking, generatePlayerId } from './utils';
+import { createFullDeck, calculatePlayerScore, checkGameEnd, generateGameId, calculateFinalRanking, generatePlayerId, toSafeBoard, toSafeArrayGeneric } from './utils';
 import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
 import { PlayerView } from './components/PlayerView';
@@ -649,11 +649,11 @@ const App: React.FC = () => {
     }
 
     const game = safeGames[gameIndex];
-    const safeTeams = Array.isArray(game.teams) ? game.teams : [];
-    const team = safeTeams[teamNumberIdx];
+    const gameTeamsArr = toSafeArrayGeneric(game.teams);
+    const team = gameTeamsArr[teamNumberIdx];
     if (!team) return;
 
-    const teamPlayers = Array.isArray(team.players) ? team.players : [];
+    const teamPlayers = toSafeArrayGeneric(team.players);
     if (teamPlayers.length >= 10) {
       alert("이 팀은 정원이 초과되었습니다.");
       return;
@@ -670,9 +670,9 @@ const App: React.FC = () => {
       joinedAt: new Date().toISOString()
     };
 
-    const newTeams = safeTeams.map((t, idx) =>
+    const newTeams = gameTeamsArr.map((t, idx) =>
       idx === teamNumberIdx
-        ? { ...t, players: [...(Array.isArray(t.players) ? t.players : []), newPlayer] }
+        ? { ...t, players: [...toSafeArrayGeneric(t.players), newPlayer] }
         : t
     );
 
@@ -693,8 +693,8 @@ const App: React.FC = () => {
 
   const startCompanyGame = () => {
     if (!activeGame) return;
-    const gameTeams = Array.isArray(activeGame.teams) ? activeGame.teams : [];
-    const activeTeams = gameTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
+    const gameTeams = toSafeArrayGeneric(activeGame.teams);
+    const activeTeams = gameTeams.filter(t => toSafeArrayGeneric(t.players).length > 0);
     if (activeTeams.length < 1) {
       alert("최소 1팀 이상 참가해야 합니다.");
       return;
@@ -712,14 +712,14 @@ const App: React.FC = () => {
       alert("모든 팀이 숫자를 배치할 때까지 기다려주세요.");
       return;
     }
-    const gameTeams = Array.isArray(activeGame.teams) ? activeGame.teams : [];
-    const newUsedCardIndices = [...(Array.isArray(activeGame.usedCardIndices) ? activeGame.usedCardIndices : []), cardIndex];
-    const newAvailable = [...(Array.isArray(activeGame.availableNumbers) ? activeGame.availableNumbers : [])];
+    const gameTeams = toSafeArrayGeneric(activeGame.teams);
+    const newUsedCardIndices = [...toSafeArrayGeneric(activeGame.usedCardIndices), cardIndex];
+    const newAvailable = [...toSafeArrayGeneric(activeGame.availableNumbers)];
     const newTeams = gameTeams.map(t => ({ ...t, hasPlacedCurrentNumber: false, placedBy: null }));
 
     updateGame(activeGame.companyName, {
       currentNumber: num,
-      usedNumbers: [...(Array.isArray(activeGame.usedNumbers) ? activeGame.usedNumbers : []), num],
+      usedNumbers: [...toSafeArrayGeneric(activeGame.usedNumbers), num],
       usedCardIndices: newUsedCardIndices,
       availableNumbers: newAvailable,
       waitingForPlacements: true,
@@ -730,14 +730,14 @@ const App: React.FC = () => {
 
   const placeNumberInTeam = (position: number) => {
     if (!activeGame || !session.myTeamId || !session.myPlayerId) return;
-    const gameTeams = Array.isArray(activeGame.teams) ? activeGame.teams : [];
+    const gameTeams = toSafeArrayGeneric(activeGame.teams);
     const teamIdx = session.myTeamId - 1;
     const team = gameTeams[teamIdx];
     if (!team) return;
 
     if (!activeGame.gameStarted || activeGame.gameEnded) return;
     if (team.hasPlacedCurrentNumber) return;
-    const teamBoard = Array.isArray(team.board) ? team.board : Array(20).fill(null);
+    const teamBoard = toSafeBoard(team.board);
     if (teamBoard[position] !== null) return;
     if (!activeGame.currentNumber) return;
 
@@ -754,7 +754,7 @@ const App: React.FC = () => {
       placedBy: session.myPlayerName
     };
 
-    const activeTeamsList = newTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
+    const activeTeamsList = newTeams.filter(t => toSafeArrayGeneric(t.players).length > 0);
     const allPlaced = activeTeamsList.every(t => t.hasPlacedCurrentNumber);
 
     let updates: Partial<GameState> = {
@@ -801,9 +801,9 @@ const App: React.FC = () => {
   };
 
   // Determine active player data.
-  const activeGameTeams = Array.isArray(activeGame?.teams) ? activeGame.teams : [];
+  const activeGameTeams = toSafeArrayGeneric(activeGame?.teams);
   const activePlayerTeam = activeGame && session.myTeamId ? activeGameTeams[session.myTeamId - 1] : null;
-  const activePlayerTeamPlayers = Array.isArray(activePlayerTeam?.players) ? activePlayerTeam.players : [];
+  const activePlayerTeamPlayers = toSafeArrayGeneric(activePlayerTeam?.players);
   const myself = activePlayerTeam && session.myPlayerId
     ? (activePlayerTeamPlayers.find(p => p.id === session.myPlayerId) || { id: 'spectator', name: session.myPlayerName || '관리자', joinedAt: '' })
     : null;
@@ -936,9 +936,9 @@ const App: React.FC = () => {
 
                 <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
                   {safeGames.map(g => {
-                    const safeTeams = Array.isArray(g.teams) ? g.teams : [];
-                    const activeCount = safeTeams.reduce((acc, t) => acc + (Array.isArray(t.players) ? t.players : []).length, 0);
-                    const joinedTeams = safeTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0).length;
+                    const gTeams = toSafeArrayGeneric(g.teams);
+                    const activeCount = gTeams.reduce((acc, t) => acc + toSafeArrayGeneric(t.players).length, 0);
+                    const joinedTeams = gTeams.filter(t => toSafeArrayGeneric(t.players).length > 0).length;
                     return (
                       <div key={generateGameId(g.companyName)} className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50 transition-all cursor-pointer group">
                         <div className="flex justify-between items-start mb-2">
@@ -994,7 +994,7 @@ const App: React.FC = () => {
                  <div>
                    <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Select Team</label>
                    <div className="grid grid-cols-4 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
-                     {(Array.isArray(safeGames.find(g => generateGameId(g.companyName) === selectedGameId)?.teams) ? safeGames.find(g => generateGameId(g.companyName) === selectedGameId)!.teams : []).map((t, i) => (
+                     {toSafeArrayGeneric(safeGames.find(g => generateGameId(g.companyName) === selectedGameId)?.teams).map((t, i) => (
                        <button
                          key={t.teamNumber}
                          onClick={() => setJoinTeamIdx(i)}

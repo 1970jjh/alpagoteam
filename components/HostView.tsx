@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { GameState, Team } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
 import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices } from 'lucide-react';
-import { createFullDeck, getScoringGroups } from '../utils';
+import { createFullDeck, getScoringGroups, toSafeBoard, toSafeArrayGeneric } from '../utils';
 
 interface HostViewProps {
   game: GameState;
@@ -13,12 +13,12 @@ interface HostViewProps {
 
 export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectNumber }) => {
   // Ensure all arrays exist (Firebase may return objects instead of arrays)
-  const gameTeams = Array.isArray(game.teams) ? game.teams : [];
-  const safeUsedCardIndices = Array.isArray(game.usedCardIndices) ? game.usedCardIndices : [];
+  const gameTeams = toSafeArrayGeneric(game.teams);
+  const safeUsedCardIndices = toSafeArrayGeneric(game.usedCardIndices);
   const safeTeams = gameTeams.map(t => ({
     ...t,
-    players: Array.isArray(t.players) ? t.players : [],
-    board: Array.isArray(t.board) ? t.board : Array(20).fill(null)
+    players: toSafeArrayGeneric(t.players),
+    board: toSafeBoard(t.board)
   }));
   const activeTeams = safeTeams.filter(t => t.players.length > 0);
   const sortedTeams = [...activeTeams].sort((a, b) => b.score - a.score);
@@ -345,7 +345,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                         </div>
 
                         {/* Cells */}
-                        {(Array.isArray(team.board) ? team.board : Array(20).fill(null)).map((cell, cIdx) => {
+                        {toSafeBoard(team.board).map((cell, cIdx) => {
                            const style = getGridStyle(cIdx);
                            const isFilled = cell !== null;
                            const groupID = scoringGroups.get(cIdx);
@@ -407,17 +407,17 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                     <div className="text-center">
                       <p className="text-gray-500 dark:text-ai-dim mb-2">팀원 명단</p>
                       <div className="flex flex-wrap justify-center gap-2">
-                        {(Array.isArray(viewingTeam.players) ? viewingTeam.players : []).map(p => (
+                        {toSafeArrayGeneric(viewingTeam.players).map(p => (
                           <span key={p.id} className="px-2 py-1 bg-white dark:bg-white/10 rounded text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-transparent">{p.name}</span>
                         ))}
                       </div>
                     </div>
                 </div>
 
-                {(Array.isArray(viewingTeam.board) ? viewingTeam.board : Array(20).fill(null)).map((cell, idx) => {
+                {toSafeBoard(viewingTeam.board).map((cell, idx) => {
                    const style = getGridStyle(idx);
                    const isFilled = cell !== null;
-                   const viewingBoard = Array.isArray(viewingTeam.board) ? viewingTeam.board : Array(20).fill(null);
+                   const viewingBoard = toSafeBoard(viewingTeam.board);
                    const groupID = getScoringGroups(viewingBoard).get(idx);
                    const isScoring = groupID !== undefined;
                    const colorClass = isScoring ? getGroupColorClass(groupID) : 'bg-white dark:bg-black/60 border-gray-300 dark:border-white/20 text-slate-900 dark:text-white';

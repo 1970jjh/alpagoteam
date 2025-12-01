@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { GameState, Team, Player } from '../types';
 import { Panel, Button, Footer } from './UI';
 import { Wifi, Check, Lock, MousePointerClick } from 'lucide-react';
-import { getScoringGroups } from '../utils';
+import { getScoringGroups, toSafeBoard, toSafeArrayGeneric } from '../utils';
 
 interface PlayerViewProps {
   game: GameState;
-  team: Team; 
+  team: Team;
   me: Player;
   onPlaceNumber: (idx: number) => void;
 }
@@ -18,8 +18,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
   // Safety: Ensure myTeam has all required properties (Firebase may return objects instead of arrays)
   const safeMyTeam = {
     ...myTeam,
-    players: Array.isArray(myTeam?.players) ? myTeam.players : [],
-    board: Array.isArray(myTeam?.board) ? myTeam.board : Array(20).fill(null),
+    players: toSafeArrayGeneric(myTeam?.players),
+    board: toSafeBoard(myTeam?.board),
     teamNumber: myTeam?.teamNumber ?? 1,
     score: myTeam?.score ?? 0,
     hasPlacedCurrentNumber: myTeam?.hasPlacedCurrentNumber ?? false,
@@ -31,11 +31,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
   }, [game.currentRound, safeMyTeam.hasPlacedCurrentNumber]);
 
   // Ensure all teams have players and board arrays (Firebase may return objects instead of arrays)
-  const gameTeams = Array.isArray(game.teams) ? game.teams : [];
+  const gameTeams = toSafeArrayGeneric(game.teams);
   const safeTeams = gameTeams.map(t => ({
     ...t,
-    players: Array.isArray(t.players) ? t.players : [],
-    board: Array.isArray(t.board) ? t.board : Array(20).fill(null)
+    players: toSafeArrayGeneric(t.players),
+    board: toSafeBoard(t.board)
   }));
 
   const sortedTeams = [...safeTeams].sort((a, b) => {
@@ -138,8 +138,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
 
         {sortedTeams.map((team) => {
           const isMyTeam = team.teamNumber === safeMyTeam.teamNumber;
-          const teamBoard = Array.isArray(team.board) ? team.board : Array(20).fill(null);
-          const teamPlayers = Array.isArray(team.players) ? team.players : [];
+          const teamBoard = toSafeBoard(team.board);
+          const teamPlayers = toSafeArrayGeneric(team.players);
           const scoringGroups = getScoringGroups(teamBoard);
           
           return (
