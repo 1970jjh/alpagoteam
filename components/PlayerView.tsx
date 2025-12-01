@@ -148,23 +148,27 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
           const teamPlayers = isMyTeam ? safeMyTeam.players : (Array.isArray(team.players) ? team.players : []);
           const scoringGroups = getScoringGroups(teamBoard);
 
-          // Debug log to identify why canInteract might be false
-          if (isMyTeam) {
-            console.log('🔍 PlayerView Debug:', {
-              isMyTeam,
-              myTeamNum,
-              'team.teamNumber': team.teamNumber,
-              'game.currentNumber': game.currentNumber,
-              'typeof game.currentNumber': typeof game.currentNumber,
-              'game.currentNumber !== null': game.currentNumber !== null,
-              'safeMyTeam.hasPlacedCurrentNumber': safeMyTeam.hasPlacedCurrentNumber,
-              'game.gameEnded': game.gameEnded,
-              'emptyCellsCount': teamBoard.filter(c => c === null).length
-            });
-          }
+          // Debug info for my team
+          const debugInfo = isMyTeam ? {
+            isMyTeam,
+            myTeamNum,
+            teamNum: team.teamNumber,
+            currentNum: game.currentNumber,
+            hasPlaced: safeMyTeam.hasPlacedCurrentNumber,
+            gameEnded: game.gameEnded,
+            emptyCells: teamBoard.filter(c => c === null).length
+          } : null;
           
           return (
             <div key={team.teamNumber} className={`relative transition-all duration-500 ${isMyTeam ? 'opacity-100 scale-100' : 'opacity-80 scale-95 grayscale-[0.3]'}`}>
+              {/* DEBUG INFO - 문제 발생시 이 정보를 스크린샷으로 보내주세요 */}
+              {isMyTeam && debugInfo && (
+                <div className="mb-2 p-2 bg-red-900/80 text-white text-[10px] font-mono rounded border border-red-500">
+                  <div>🔍 DEBUG: isMyTeam={String(debugInfo.isMyTeam)} | myTeamNum={debugInfo.myTeamNum} | teamNum={debugInfo.teamNum}</div>
+                  <div>currentNum={String(debugInfo.currentNum)} (type:{typeof debugInfo.currentNum}) | hasPlaced={String(debugInfo.hasPlaced)} | gameEnded={String(debugInfo.gameEnded)}</div>
+                  <div>emptyCells={debugInfo.emptyCells} | canInteract조건: {debugInfo.isMyTeam && debugInfo.currentNum !== null && !debugInfo.hasPlaced && !debugInfo.gameEnded ? '✅ OK' : '❌ FAIL'}</div>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-2 px-1">
                 <div className="flex items-center gap-2">
                   <div className={`px-2 py-1 rounded text-xs font-bold ${isMyTeam ? 'bg-cyan-600 text-white dark:bg-ai-primary dark:text-black' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
