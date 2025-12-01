@@ -35,7 +35,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
   const safeTeams = gameTeams.map(t => ({
     ...t,
     players: Array.isArray(t.players) ? t.players : [],
-    board: restoreBoardArray(t.board)
+    board: restoreBoardArray(t.board),
+    hasPlacedCurrentNumber: t.hasPlacedCurrentNumber ?? false
   }));
 
   const sortedTeams = [...safeTeams].sort((a, b) => {
@@ -138,8 +139,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
 
         {sortedTeams.map((team) => {
           const isMyTeam = team.teamNumber === safeMyTeam.teamNumber;
-          const teamBoard = restoreBoardArray(team.board);
-          const teamPlayers = Array.isArray(team.players) ? team.players : [];
+          // For my team, prefer props data (safeMyTeam) over game.teams data due to Firebase sync timing
+          const teamBoard = isMyTeam ? safeMyTeam.board : restoreBoardArray(team.board);
+          const teamPlayers = isMyTeam ? safeMyTeam.players : (Array.isArray(team.players) ? team.players : []);
           const scoringGroups = getScoringGroups(teamBoard);
           
           return (
@@ -207,8 +209,11 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
                      const isFilled = cell !== null;
                      const groupID = scoringGroups.get(index);
                      const isScoring = groupID !== undefined;
-                     
-                     const canInteract = isMyTeam && !isFilled && game.currentNumber !== null && !team.hasPlacedCurrentNumber && !game.gameEnded;
+
+                     // For my team, use safeMyTeam.hasPlacedCurrentNumber (from props) which is more reliable
+                     // than team.hasPlacedCurrentNumber (from game.teams) due to Firebase sync timing
+                     const hasPlacedNumber = isMyTeam ? safeMyTeam.hasPlacedCurrentNumber : team.hasPlacedCurrentNumber;
+                     const canInteract = isMyTeam && !isFilled && game.currentNumber !== null && !hasPlacedNumber && !game.gameEnded;
                      const isSelected = pendingIndex === index;
                      const style = getGridStyle(index);
 
