@@ -127,7 +127,9 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
 
         {sortedTeams.map((team) => {
           const isMyTeam = team.teamNumber === myTeam.teamNumber;
-          const scoringGroups = getScoringGroups(team.board);
+          const teamBoard = team.board || Array(20).fill(null);
+          const teamPlayers = team.players || [];
+          const scoringGroups = getScoringGroups(teamBoard);
           
           return (
             <div key={team.teamNumber} className={`relative transition-all duration-500 ${isMyTeam ? 'opacity-100 scale-100' : 'opacity-80 scale-95 grayscale-[0.3]'}`}>
@@ -139,7 +141,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
                   {!isMyTeam && <span className="text-xs text-gray-500">관전 모드</span>}
                 </div>
                 <div className="text-xs font-mono text-gray-400">
-                  {team.players.length}명 참여 • <span className={`${isMyTeam ? 'text-purple-600 dark:text-ai-secondary' : 'text-gray-500'} font-bold`}>{team.score}점</span>
+                  {teamPlayers.length}명 참여 • <span className={`${isMyTeam ? 'text-purple-600 dark:text-ai-secondary' : 'text-gray-500'} font-bold`}>{team.score}점</span>
                 </div>
               </div>
 
@@ -183,14 +185,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
                            </div>
                          )}
                          <div className="mt-2 flex flex-wrap justify-center gap-1.5 opacity-60 max-h-[80px] overflow-y-auto custom-scrollbar w-full">
-                            {team.players.map(p => (
+                            {teamPlayers.map(p => (
                                <span key={p.id} className="text-[10px] bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300 truncate max-w-[80px]">{p.name}</span>
                             ))}
                          </div>
                       </div>
                    </div>
 
-                   {team.board.map((cell, index) => {
+                   {teamBoard.map((cell, index) => {
                      const isFilled = cell !== null;
                      const groupID = scoringGroups.get(index);
                      const isScoring = groupID !== undefined;

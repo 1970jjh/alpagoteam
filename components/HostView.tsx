@@ -345,7 +345,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                         </div>
 
                         {/* Cells */}
-                        {team.board.map((cell, cIdx) => {
+                        {(team.board || Array(20).fill(null)).map((cell, cIdx) => {
                            const style = getGridStyle(cIdx);
                            const isFilled = cell !== null;
                            const groupID = scoringGroups.get(cIdx);
@@ -414,10 +414,11 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                     </div>
                 </div>
 
-                {viewingTeam.board.map((cell, idx) => {
+                {(viewingTeam.board || Array(20).fill(null)).map((cell, idx) => {
                    const style = getGridStyle(idx);
                    const isFilled = cell !== null;
-                   const groupID = getScoringGroups(viewingTeam.board).get(idx);
+                   const viewingBoard = viewingTeam.board || Array(20).fill(null);
+                   const groupID = getScoringGroups(viewingBoard).get(idx);
                    const isScoring = groupID !== undefined;
                    const colorClass = isScoring ? getGroupColorClass(groupID) : 'bg-white dark:bg-black/60 border-gray-300 dark:border-white/20 text-slate-900 dark:text-white';
 
