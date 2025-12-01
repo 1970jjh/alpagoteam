@@ -11,20 +11,16 @@ import { GameState, Team } from './types';
  * This function ensures we always get a proper 20-element array back.
  */
 export const restoreBoardArray = (board: any): (number | string | null)[] => {
-  // If it's already a proper 20-element array, return a copy
-  if (Array.isArray(board) && board.length === 20) {
-    return [...board];
-  }
-
   // Create a fresh 20-element array filled with null
   const restoredBoard: (number | string | null)[] = Array(20).fill(null);
 
-  // If board is an array but not 20 elements, copy existing values
+  // If board is an array, copy valid values (convert undefined to null)
   if (Array.isArray(board)) {
     board.forEach((value, index) => {
-      if (index < 20 && value !== undefined) {
+      if (index < 20 && value !== undefined && value !== null) {
         restoredBoard[index] = value;
       }
+      // undefined or null values are left as null (from Array.fill)
     });
     return restoredBoard;
   }
@@ -33,8 +29,10 @@ export const restoreBoardArray = (board: any): (number | string | null)[] => {
   if (board && typeof board === 'object') {
     Object.keys(board).forEach(key => {
       const index = parseInt(key, 10);
-      if (!isNaN(index) && index >= 0 && index < 20) {
-        restoredBoard[index] = board[key];
+      const value = board[key];
+      // Only copy non-null, non-undefined values
+      if (!isNaN(index) && index >= 0 && index < 20 && value !== undefined && value !== null) {
+        restoredBoard[index] = value;
       }
     });
     return restoredBoard;
