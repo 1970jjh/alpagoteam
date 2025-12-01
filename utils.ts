@@ -82,41 +82,147 @@ export const createFullDeck = (): (number | string)[] => {
   return deck;
 };
 
-// Helper for scoring
-const isAscendingOrder = (current: number | string, next: number | string) => {
+// Helper for scoring - checks if two adjacent numbers are in ascending order
+// Joker handling is done separately in the main scoring function
+const isNumericAscending = (current: number | string, next: number | string): boolean => {
+  // If either is a joker, let the main function handle it
   if (current === '★' || next === '★') {
-    return true;
+    return true; // Placeholder - actual joker logic is in calculatePlayerScore
   }
-  
-  const currentNum = typeof current === 'number' ? current : parseFloat(current);
-  const nextNum = typeof next === 'number' ? next : parseFloat(next);
-  
+
+  const currentNum = typeof current === 'number' ? current : parseFloat(current as string);
+  const nextNum = typeof next === 'number' ? next : parseFloat(next as string);
+
   return currentNum <= nextNum;
+};
+
+// Get numeric value, returns null for joker or null
+const getNumericValue = (val: number | string | null): number | null => {
+  if (val === null || val === '★') return null;
+  return typeof val === 'number' ? val : parseFloat(val as string);
 };
 
 export const calculatePlayerScore = (board: (number | string | null)[]) => {
   const SCORE_TABLE = [0, 0, 1, 3, 5, 7, 9, 11, 15, 20, 25, 30, 35, 40, 50, 60, 70, 85, 100, 150, 300];
+
+  // Step 1: Build connection array - does position i connect to position i+1?
+  // Initially mark all adjacent non-null pairs as potentially connected
+  const connects: boolean[] = new Array(20).fill(false);
+
+  for (let i = 0; i < 19; i++) {
+    if (board[i] === null || board[i + 1] === null) {
+      connects[i] = false;
+      continue;
+    }
+
+    const curr = board[i]!;
+    const next = board[i + 1]!;
+
+    // Both are numbers - simple ascending check
+    if (curr !== '★' && next !== '★') {
+      connects[i] = (curr as number) <= (next as number);
+    } else {
+      // At least one is a joker - mark as connected for now
+      connects[i] = true;
+    }
+  }
+
+  // Step 2: Find joker positions that need break decisions
+  // A joker needs a break decision when: before_joker >= after_joker
+  for (let i = 0; i < 20; i++) {
+    if (board[i] !== '★') continue;
+
+    // Find the nearest numeric value before this joker (following connections backward)
+    let beforeVal: number | null = null;
+    let beforePos = -1;
+    for (let k = i - 1; k >= 0; k--) {
+      if (board[k] === null) break;
+      if (board[k] !== '★') {
+        beforeVal = board[k] as number;
+        beforePos = k;
+        break;
+      }
+    }
+
+    // Find the nearest numeric value after this joker (following connections forward)
+    let afterVal: number | null = null;
+    let afterPos = -1;
+    for (let k = i + 1; k < 20; k++) {
+      if (board[k] === null) break;
+      if (board[k] !== '★') {
+        afterVal = board[k] as number;
+        afterPos = k;
+        break;
+      }
+    }
+
+    // If both exist and NOT ascending (before >= after), we need to break somewhere
+    if (beforeVal !== null && afterVal !== null && beforeVal >= afterVal) {
+      // Calculate sequence length if joker connects to LEFT (before) side
+      let leftLength = 1; // The joker itself
+      // Count consecutive ascending going left from joker
+      for (let k = i - 1; k >= 0 && board[k] !== null; k--) {
+        if (k > 0 && board[k - 1] !== null && board[k] !== '★' && board[k - 1] !== '★') {
+          if ((board[k - 1] as number) <= (board[k] as number)) {
+            leftLength++;
+          } else {
+            leftLength++;
+            break;
+          }
+        } else {
+          leftLength++;
+          if (board[k] !== '★') break;
+        }
+      }
+
+      // Calculate sequence length if joker connects to RIGHT (after) side
+      let rightLength = 1; // The joker itself
+      // Count consecutive ascending going right from joker
+      for (let k = i + 1; k < 20 && board[k] !== null; k++) {
+        if (k < 19 && board[k + 1] !== null && board[k] !== '★' && board[k + 1] !== '★') {
+          if ((board[k] as number) <= (board[k + 1] as number)) {
+            rightLength++;
+          } else {
+            rightLength++;
+            break;
+          }
+        } else {
+          rightLength++;
+          if (board[k] !== '★') break;
+        }
+      }
+
+      // Break on the shorter side
+      if (leftLength >= rightLength) {
+        // Joker connects to left, break after joker
+        if (i < 19) connects[i] = false;
+      } else {
+        // Joker connects to right, break before joker
+        if (i > 0) connects[i - 1] = false;
+      }
+    }
+  }
+
+  // Step 3: Count sequences based on connection array
   let totalScore = 0;
   let i = 0;
-  
+
   while (i < 20) {
     if (board[i] === null) {
       i++;
       continue;
     }
-    
+
     let runLength = 1;
-    while (i + 1 < 20 && 
-           board[i + 1] !== null && 
-           isAscendingOrder(board[i]!, board[i + 1]!)) {
+    while (i < 19 && connects[i]) {
       runLength++;
       i++;
     }
-    
+
     totalScore += SCORE_TABLE[Math.min(runLength, SCORE_TABLE.length - 1)] || 0;
     i++;
   }
-  
+
   return totalScore;
 };
 
@@ -124,39 +230,112 @@ export const calculatePlayerScore = (board: (number | string | null)[]) => {
 // Used for coloring distinct ascending sequences with alternating colors
 export const getScoringGroups = (board: (number | string | null)[]) => {
   const groupMap = new Map<number, number>();
-  let i = 0;
+
+  // Use the same logic as calculatePlayerScore to determine connections
+  const connects: boolean[] = new Array(20).fill(false);
+
+  for (let i = 0; i < 19; i++) {
+    if (board[i] === null || board[i + 1] === null) {
+      connects[i] = false;
+      continue;
+    }
+
+    const curr = board[i]!;
+    const next = board[i + 1]!;
+
+    if (curr !== '★' && next !== '★') {
+      connects[i] = (curr as number) <= (next as number);
+    } else {
+      connects[i] = true;
+    }
+  }
+
+  // Handle joker breaks
+  for (let i = 0; i < 20; i++) {
+    if (board[i] !== '★') continue;
+
+    let beforeVal: number | null = null;
+    for (let k = i - 1; k >= 0; k--) {
+      if (board[k] === null) break;
+      if (board[k] !== '★') {
+        beforeVal = board[k] as number;
+        break;
+      }
+    }
+
+    let afterVal: number | null = null;
+    for (let k = i + 1; k < 20; k++) {
+      if (board[k] === null) break;
+      if (board[k] !== '★') {
+        afterVal = board[k] as number;
+        break;
+      }
+    }
+
+    if (beforeVal !== null && afterVal !== null && beforeVal >= afterVal) {
+      let leftLength = 1;
+      for (let k = i - 1; k >= 0 && board[k] !== null; k--) {
+        if (k > 0 && board[k - 1] !== null && board[k] !== '★' && board[k - 1] !== '★') {
+          if ((board[k - 1] as number) <= (board[k] as number)) {
+            leftLength++;
+          } else {
+            leftLength++;
+            break;
+          }
+        } else {
+          leftLength++;
+          if (board[k] !== '★') break;
+        }
+      }
+
+      let rightLength = 1;
+      for (let k = i + 1; k < 20 && board[k] !== null; k++) {
+        if (k < 19 && board[k + 1] !== null && board[k] !== '★' && board[k + 1] !== '★') {
+          if ((board[k] as number) <= (board[k + 1] as number)) {
+            rightLength++;
+          } else {
+            rightLength++;
+            break;
+          }
+        } else {
+          rightLength++;
+          if (board[k] !== '★') break;
+        }
+      }
+
+      if (leftLength >= rightLength) {
+        if (i < 19) connects[i] = false;
+      } else {
+        if (i > 0) connects[i - 1] = false;
+      }
+    }
+  }
+
+  // Build groups from connections
   let groupCounter = 0;
-  
+  let i = 0;
+
   while (i < 20) {
     if (board[i] === null) {
       i++;
       continue;
     }
-    
-    let runLength = 1;
-    let currentSequence = [i];
-    
-    // Check forward for sequence
-    let tempI = i;
-    while (tempI + 1 < 20 && 
-           board[tempI + 1] !== null && 
-           isAscendingOrder(board[tempI]!, board[tempI + 1]!)) {
-      runLength++;
-      tempI++;
-      currentSequence.push(tempI);
+
+    const currentSequence: number[] = [i];
+    while (i < 19 && connects[i]) {
+      i++;
+      currentSequence.push(i);
     }
-    
+
     // Only assign a group color if it's a scoring sequence (length >= 2)
-    // Or we can color single numbers too if desired, but request implies "continuous ascending"
-    if (runLength >= 2) {
+    if (currentSequence.length >= 2) {
       currentSequence.forEach(idx => groupMap.set(idx, groupCounter));
-      groupCounter++; 
+      groupCounter++;
     }
-    
-    // Move main iterator
-    i = tempI + 1;
+
+    i++;
   }
-  
+
   return groupMap;
 };
 
