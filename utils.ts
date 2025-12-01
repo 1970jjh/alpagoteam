@@ -130,8 +130,8 @@ export const getScoringIndices = (board: (number | string | null)[]) => {
 }
 
 export const checkGameEnd = (gameData: GameState) => {
-  const safeTeams = gameData.teams || [];
-  const teamsWithPlayers = safeTeams.filter(t => (t.players || []).length > 0);
+  const safeTeams = Array.isArray(gameData.teams) ? gameData.teams : [];
+  const teamsWithPlayers = safeTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
 
   // 20 rounds complete
   if (gameData.currentRound >= 20) {
@@ -141,7 +141,7 @@ export const checkGameEnd = (gameData: GameState) => {
   // All active boards full
   let allBoardsFull = true;
   for (let i = 0; i < teamsWithPlayers.length; i++) {
-    const board = teamsWithPlayers[i].board || Array(20).fill(null);
+    const board = Array.isArray(teamsWithPlayers[i].board) ? teamsWithPlayers[i].board : Array(20).fill(null);
     for (let j = 0; j < board.length; j++) {
       if (board[j] === null) {
         allBoardsFull = false;
@@ -155,13 +155,13 @@ export const checkGameEnd = (gameData: GameState) => {
 };
 
 export const calculateFinalRanking = (gameData: GameState) => {
-  const safeTeams = gameData.teams || [];
+  const safeTeams = Array.isArray(gameData.teams) ? gameData.teams : [];
   const teamsWithPlayers = safeTeams
-    .filter(t => (t.players || []).length > 0)
+    .filter(t => (Array.isArray(t.players) ? t.players : []).length > 0)
     .map(t => ({
       teamNumber: t.teamNumber,
       score: t.score,
-      players: t.players || []
+      players: Array.isArray(t.players) ? t.players : []
     }));
   
   // Sort by score descending
