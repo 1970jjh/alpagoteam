@@ -1,19 +1,23 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GameState, Team, Player } from '../types';
 import { Panel, Button, Footer } from './UI';
 import { Wifi, Check, Lock, MousePointerClick } from 'lucide-react';
 import { getScoringGroups, restoreBoardArray } from '../utils';
+import { playScoreSound, playFanfareSound, initAudioOnInteraction } from '../sounds';
 
 interface PlayerViewProps {
   game: GameState;
-  team: Team; 
+  team: Team;
   me: Player;
   onPlaceNumber: (idx: number) => void;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, onPlaceNumber }) => {
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
+  const prevScoreRef = useRef<number>(0);
+  const prevGameEndedRef = useRef<boolean>(false);
+  const audioInitializedRef = useRef<boolean>(false);
 
   // Safety: Ensure myTeam has all required properties (Firebase may return objects instead of arrays)
   const safeMyTeam = {
@@ -25,6 +29,43 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
     hasPlacedCurrentNumber: myTeam?.hasPlacedCurrentNumber ?? false,
     placedBy: myTeam?.placedBy ?? null
   };
+
+  // Initialize audio on first user interaction (required for mobile)
+  useEffect(() => {
+    if (!audioInitializedRef.current) {
+      const handleInteraction = () => {
+        initAudioOnInteraction();
+        audioInitializedRef.current = true;
+        document.removeEventListener('touchstart', handleInteraction);
+        document.removeEventListener('click', handleInteraction);
+      };
+      document.addEventListener('touchstart', handleInteraction);
+      document.addEventListener('click', handleInteraction);
+      return () => {
+        document.removeEventListener('touchstart', handleInteraction);
+        document.removeEventListener('click', handleInteraction);
+      };
+    }
+  }, []);
+
+  // Play score sound when my team's score increases
+  useEffect(() => {
+    if (safeMyTeam.score > prevScoreRef.current && prevScoreRef.current > 0) {
+      playScoreSound();
+    }
+    prevScoreRef.current = safeMyTeam.score;
+  }, [safeMyTeam.score]);
+
+  // Play fanfare when game ends
+  useEffect(() => {
+    if (game.gameEnded && !prevGameEndedRef.current) {
+      // Delay fanfare slightly for dramatic effect
+      setTimeout(() => {
+        playFanfareSound();
+      }, 500);
+    }
+    prevGameEndedRef.current = game.gameEnded;
+  }, [game.gameEnded]);
 
   useEffect(() => {
     setPendingIndex(null);
