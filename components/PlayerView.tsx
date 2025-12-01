@@ -147,6 +147,21 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
           const teamBoard = isMyTeam ? safeMyTeam.board : restoreBoardArray(team.board);
           const teamPlayers = isMyTeam ? safeMyTeam.players : (Array.isArray(team.players) ? team.players : []);
           const scoringGroups = getScoringGroups(teamBoard);
+
+          // Debug log to identify why canInteract might be false
+          if (isMyTeam) {
+            console.log('🔍 PlayerView Debug:', {
+              isMyTeam,
+              myTeamNum,
+              'team.teamNumber': team.teamNumber,
+              'game.currentNumber': game.currentNumber,
+              'typeof game.currentNumber': typeof game.currentNumber,
+              'game.currentNumber !== null': game.currentNumber !== null,
+              'safeMyTeam.hasPlacedCurrentNumber': safeMyTeam.hasPlacedCurrentNumber,
+              'game.gameEnded': game.gameEnded,
+              'emptyCellsCount': teamBoard.filter(c => c === null).length
+            });
+          }
           
           return (
             <div key={team.teamNumber} className={`relative transition-all duration-500 ${isMyTeam ? 'opacity-100 scale-100' : 'opacity-80 scale-95 grayscale-[0.3]'}`}>
