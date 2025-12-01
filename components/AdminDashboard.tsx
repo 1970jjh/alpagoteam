@@ -14,9 +14,13 @@ interface AdminDashboardProps {
   onClose: () => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
-  members, logs, onRegisterMember, onDeleteMember, onExtendMember, onRenewMember, onClose 
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  members, logs, onRegisterMember, onDeleteMember, onExtendMember, onRenewMember, onClose
 }) => {
+  // Safety: Ensure arrays are always valid (Firebase may return undefined)
+  const safeMembers = Array.isArray(members) ? members : [];
+  const safeLogs = Array.isArray(logs) ? logs : [];
+
   const [activeTab, setActiveTab] = useState<'MEMBERS' | 'LOGS'>('MEMBERS');
   
   // Form State
@@ -115,7 +119,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Member List */}
               <div className="flex-1 p-6 overflow-hidden flex flex-col">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">등록된 회원 목록 ({members.length})</h3>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">등록된 회원 목록 ({safeMembers.length})</h3>
                   <div className="relative">
                     <Search className="w-4 h-4 text-gray-500 absolute left-3 top-2.5" />
                     <input className="pl-9 pr-4 py-2 bg-white dark:bg-white/5 rounded border border-gray-300 dark:border-white/10 text-xs text-slate-800 dark:text-white outline-none focus:border-cyan-500 dark:focus:border-ai-primary w-48 transition-colors" placeholder="검색..." />
@@ -134,7 +138,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </tr>
                     </thead>
                     <tbody className="text-sm divide-y divide-gray-200 dark:divide-white/5">
-                      {members.map(member => (
+                      {safeMembers.map(member => (
                         <tr key={member.id} className="hover:bg-gray-100 dark:hover:bg-white/5 transition-colors group">
                           <td className="p-3">
                             <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
@@ -189,7 +193,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </td>
                         </tr>
                       ))}
-                      {members.length === 0 && (
+                      {safeMembers.length === 0 && (
                         <tr>
                           <td colSpan={5} className="p-8 text-center text-gray-600 text-xs">등록된 회원이 없습니다.</td>
                         </tr>
@@ -219,7 +223,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </tr>
                     </thead>
                     <tbody className="text-sm divide-y divide-gray-200 dark:divide-white/5 font-mono">
-                      {logs.slice().reverse().map(log => (
+                      {safeLogs.slice().reverse().map(log => (
                         <tr key={log.id} className="hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
                           <td className="p-3 text-gray-500 text-xs">{formatDate(log.timestamp)}</td>
                           <td className="p-3">
@@ -248,7 +252,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </td>
                         </tr>
                       ))}
-                      {logs.length === 0 && (
+                      {safeLogs.length === 0 && (
                         <tr>
                           <td colSpan={5} className="p-8 text-center text-gray-600 text-xs">기록된 로그가 없습니다.</td>
                         </tr>

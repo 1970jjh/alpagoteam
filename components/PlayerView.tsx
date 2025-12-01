@@ -15,9 +15,20 @@ interface PlayerViewProps {
 export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, onPlaceNumber }) => {
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
 
+  // Safety: Ensure myTeam has all required properties
+  const safeMyTeam = {
+    ...myTeam,
+    players: myTeam?.players || [],
+    board: myTeam?.board || Array(20).fill(null),
+    teamNumber: myTeam?.teamNumber ?? 1,
+    score: myTeam?.score ?? 0,
+    hasPlacedCurrentNumber: myTeam?.hasPlacedCurrentNumber ?? false,
+    placedBy: myTeam?.placedBy ?? null
+  };
+
   useEffect(() => {
     setPendingIndex(null);
-  }, [game.currentRound, myTeam.hasPlacedCurrentNumber]);
+  }, [game.currentRound, safeMyTeam.hasPlacedCurrentNumber]);
 
   // Ensure all teams have players and board arrays (Firebase doesn't store empty arrays)
   const gameTeams = game.teams || [];
@@ -28,8 +39,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
   }));
 
   const sortedTeams = [...safeTeams].sort((a, b) => {
-    if (a.teamNumber === myTeam.teamNumber) return -1;
-    if (b.teamNumber === myTeam.teamNumber) return 1;
+    if (a.teamNumber === safeMyTeam.teamNumber) return -1;
+    if (b.teamNumber === safeMyTeam.teamNumber) return 1;
     return a.teamNumber - b.teamNumber;
   });
 
@@ -82,12 +93,12 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
             <div className="flex items-center gap-2">
             <Wifi className="w-4 h-4 text-green-600 dark:text-ai-success animate-pulse" />
             <span className="font-display font-bold text-slate-900 dark:text-white text-lg">
-                {myTeam.teamNumber}조 <span className="text-xs font-normal text-gray-500 dark:text-ai-dim">(나의 팀)</span>
+                {safeMyTeam.teamNumber}조 <span className="text-xs font-normal text-gray-500 dark:text-ai-dim">(나의 팀)</span>
             </span>
             </div>
             <div className="text-right">
             <span className="block text-[10px] text-gray-500 dark:text-ai-dim font-mono uppercase">내 점수</span>
-            <span className="font-mono font-bold text-purple-600 dark:text-ai-secondary text-xl">{myTeam.score}</span>
+            <span className="font-mono font-bold text-purple-600 dark:text-ai-secondary text-xl">{safeMyTeam.score}</span>
             </div>
         </div>
       </div>
@@ -111,7 +122,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
               )}
               
               <div className="mt-4 pt-3 border-t border-gray-200 dark:border-white/10">
-                {myTeam.hasPlacedCurrentNumber ? (
+                {safeMyTeam.hasPlacedCurrentNumber ? (
                   <div className="flex items-center justify-center gap-2 text-green-700 dark:text-ai-success bg-green-100 dark:bg-ai-success/10 py-2 rounded-lg">
                     <Check className="w-5 h-5" />
                     <span className="font-bold text-sm">배치 완료! 다음 숫자를 기다리세요</span>
@@ -126,7 +137,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
         )}
 
         {sortedTeams.map((team) => {
-          const isMyTeam = team.teamNumber === myTeam.teamNumber;
+          const isMyTeam = team.teamNumber === safeMyTeam.teamNumber;
           const teamBoard = team.board || Array(20).fill(null);
           const teamPlayers = team.players || [];
           const scoringGroups = getScoringGroups(teamBoard);
@@ -259,7 +270,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
 
       <Footer />
 
-      {pendingIndex !== null && !myTeam.hasPlacedCurrentNumber && game.currentNumber !== null && (
+      {pendingIndex !== null && !safeMyTeam.hasPlacedCurrentNumber && game.currentNumber !== null && (
          <div className="fixed bottom-6 left-0 w-full px-6 z-50 animate-bounce-in">
             <Button 
                variant="primary" 
