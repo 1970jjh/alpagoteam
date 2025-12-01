@@ -925,8 +925,9 @@ const App: React.FC = () => {
 
                 <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
                   {safeGames.map(g => {
-                    const activeCount = g.teams.reduce((acc, t) => acc + t.players.length, 0);
-                    const joinedTeams = g.teams.filter(t => t.players.length > 0).length;
+                    const safeTeams = g.teams || [];
+                    const activeCount = safeTeams.reduce((acc, t) => acc + (t.players || []).length, 0);
+                    const joinedTeams = safeTeams.filter(t => (t.players || []).length > 0).length;
                     return (
                       <div key={generateGameId(g.companyName)} className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50 transition-all cursor-pointer group">
                         <div className="flex justify-between items-start mb-2">
@@ -982,7 +983,7 @@ const App: React.FC = () => {
                  <div>
                    <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Select Team</label>
                    <div className="grid grid-cols-4 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
-                     {safeGames.find(g => generateGameId(g.companyName) === selectedGameId)?.teams.map((t, i) => (
+                     {(safeGames.find(g => generateGameId(g.companyName) === selectedGameId)?.teams || []).map((t, i) => (
                        <button
                          key={t.teamNumber}
                          onClick={() => setJoinTeamIdx(i)}
