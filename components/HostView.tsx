@@ -299,46 +299,46 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
              </div>
              
              <div className="flex-1 overflow-y-auto custom-scrollbar">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-4">
                  {displayedTeams.map(team => {
                    const scoringGroups = getScoringGroups(team.board);
 
                    return (
-                   <div key={team.teamNumber} className={`relative p-4 rounded-xl border transition-all ${team.hasPlacedCurrentNumber && game.waitingForPlacements ? 'bg-green-50 border-green-200 dark:bg-ai-success/5 dark:border-ai-success/30' : 'bg-gray-100 dark:bg-black/30 border-gray-200 dark:border-white/10'}`}>
-                     
-                     <button 
+                   <div key={team.teamNumber} className={`relative p-2 rounded-lg border transition-all ${team.hasPlacedCurrentNumber && game.waitingForPlacements ? 'bg-green-50 border-green-200 dark:bg-ai-success/5 dark:border-ai-success/30' : 'bg-gray-100 dark:bg-black/30 border-gray-200 dark:border-white/10'}`}>
+
+                     <button
                        onClick={() => setViewingTeam(team)}
-                       className="absolute top-2 right-2 p-2 bg-white/50 hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 rounded-full z-20 text-gray-600 dark:text-white/50 hover:text-black dark:hover:text-white transition-colors"
+                       className="absolute top-1 right-1 p-1.5 bg-white/50 hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 rounded-full z-20 text-gray-600 dark:text-white/50 hover:text-black dark:hover:text-white transition-colors"
                      >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3 h-3" />
                      </button>
 
-                     <div className="w-full aspect-[8/6] grid grid-cols-8 grid-rows-6 gap-1 relative">
-                        
+                     <div className="w-full aspect-[8/5] grid grid-cols-8 grid-rows-6 gap-0.5 relative">
+
                         {/* Center Info */}
-                        <div className="col-start-1 col-end-8 row-start-2 row-end-6 flex flex-col items-center justify-center p-2 z-0">
+                        <div className="col-start-1 col-end-8 row-start-2 row-end-6 flex flex-col items-center justify-center p-1 z-0">
                            <div className="text-center w-full">
-                              <div className="flex items-center justify-center gap-2 mb-1">
-                                <span className="font-display font-bold text-slate-800 dark:text-white text-xl">{team.teamNumber}조</span>
-                                <div className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-[10px] text-gray-600 dark:text-ai-dim">{team.players.length}명</div>
+                              <div className="flex items-center justify-center gap-1 mb-0.5">
+                                <span className="font-display font-bold text-slate-800 dark:text-white text-base">{team.teamNumber}조</span>
+                                <div className="px-1 py-0.5 rounded bg-gray-200 dark:bg-white/10 text-[8px] text-gray-600 dark:text-ai-dim">{team.players.length}명</div>
                               </div>
-                              
+
                               {/* FINAL SCORE LARGE DISPLAY IN CENTER */}
-                              <div className="my-2">
-                                <span className={`font-mono font-bold block leading-none ${game.gameEnded ? 'text-5xl text-cyan-600 dark:text-ai-primary dark:drop-shadow-[0_0_10px_rgba(0,242,255,0.8)]' : 'text-2xl text-purple-600 dark:text-ai-secondary'}`}>
-                                  {team.score}<span className="text-sm ml-1">점</span>
+                              <div className="my-1">
+                                <span className={`font-mono font-bold block leading-none ${game.gameEnded ? 'text-3xl text-cyan-600 dark:text-ai-primary dark:drop-shadow-[0_0_10px_rgba(0,242,255,0.8)]' : 'text-xl text-purple-600 dark:text-ai-secondary'}`}>
+                                  {team.score}<span className="text-xs ml-0.5">점</span>
                                 </span>
                               </div>
 
-                              <div className="flex flex-wrap justify-center gap-1 max-h-[30px] overflow-hidden px-2 opacity-70 dark:opacity-50">
+                              <div className="flex flex-wrap justify-center gap-0.5 max-h-[20px] overflow-hidden px-1 opacity-70 dark:opacity-50">
                                 {team.players.map(p => (
-                                  <span key={p.id} className="text-[9px] text-gray-600 dark:text-gray-400 bg-white dark:bg-white/5 px-1 rounded truncate max-w-[50px] border border-gray-100 dark:border-none">{p.name}</span>
+                                  <span key={p.id} className="text-[7px] text-gray-600 dark:text-gray-400 bg-white dark:bg-white/5 px-0.5 rounded truncate max-w-[40px] border border-gray-100 dark:border-none">{p.name}</span>
                                 ))}
                               </div>
 
                               {team.hasPlacedCurrentNumber && game.waitingForPlacements && (
-                                <div className="mt-1 flex items-center justify-center text-green-600 dark:text-ai-success text-[10px] font-bold gap-1 animate-pulse">
-                                  <CheckCircle2 className="w-3 h-3" /> 배치완료
+                                <div className="mt-0.5 flex items-center justify-center text-green-600 dark:text-ai-success text-[8px] font-bold gap-0.5 animate-pulse">
+                                  <CheckCircle2 className="w-2.5 h-2.5" /> 배치완료
                                 </div>
                               )}
                            </div>
@@ -350,27 +350,27 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                            const isFilled = cell !== null;
                            const groupID = scoringGroups.get(cIdx);
                            const isScoring = groupID !== undefined;
-                           
+
                            // Alternating Colors for Scoring Groups
                            const colorClass = isScoring ? getGroupColorClass(groupID) : 'bg-white dark:bg-black/60 border-gray-300 dark:border-white/20 text-slate-900 dark:text-white shadow-sm dark:shadow-none';
 
                            return (
-                             <div 
-                               key={cIdx} 
+                             <div
+                               key={cIdx}
                                style={style}
                                className={`
-                                 relative rounded flex items-center justify-center text-sm font-bold z-10 overflow-hidden
-                                 ${isFilled 
+                                 relative rounded flex items-center justify-center text-xs font-bold z-10 overflow-hidden
+                                 ${isFilled
                                    ? colorClass
                                    : 'bg-gray-200 dark:bg-[#0a0a0f] border-gray-300 dark:border-white/30'}
-                                 ${isFilled ? 'border-2' : 'border'}
+                                 ${isFilled ? 'border' : 'border'}
                                `}
                              >
                                {isFilled && (
-                                 <span className="text-xl font-black neon-green-text">{cell}</span>
+                                 <span className="text-sm font-black neon-green-text">{cell}</span>
                                )}
                                {!isFilled && (
-                                 <span className="text-gray-400 dark:text-white/50 font-display text-xs">{cIdx + 1}</span>
+                                 <span className="text-gray-400 dark:text-white/50 font-display text-[8px]">{cIdx + 1}</span>
                                )}
                              </div>
                            );
