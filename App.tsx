@@ -641,20 +641,23 @@ const App: React.FC = () => {
   const joinTeam = (gameId: string, teamNumberIdx: number, playerName: string) => {
     const gameIndex = safeGames.findIndex(g => generateGameId(g.companyName) === gameId);
     if (gameIndex === -1) return;
-    
+
     if (!playerName.trim()) {
       alert("이름을 입력해주세요.");
       return;
     }
 
-    const game = games[gameIndex];
-    const team = game.teams[teamNumberIdx];
-    
-    if (team.players.length >= 10) {
+    const game = safeGames[gameIndex];
+    const safeTeams = game.teams || [];
+    const team = safeTeams[teamNumberIdx];
+    if (!team) return;
+
+    const teamPlayers = team.players || [];
+    if (teamPlayers.length >= 10) {
       alert("이 팀은 정원이 초과되었습니다.");
       return;
     }
-    if (team.players.some(p => p.name === playerName)) {
+    if (teamPlayers.some(p => p.name === playerName)) {
       alert("이미 이 팀에 존재하는 이름입니다.");
       return;
     }
@@ -666,14 +669,14 @@ const App: React.FC = () => {
       joinedAt: new Date().toISOString()
     };
 
-    const newTeams = game.teams.map((t, idx) => 
-      idx === teamNumberIdx 
-        ? { ...t, players: [...t.players, newPlayer] }
+    const newTeams = safeTeams.map((t, idx) =>
+      idx === teamNumberIdx
+        ? { ...t, players: [...(t.players || []), newPlayer] }
         : t
     );
-    
+
     const newGame = { ...game, teams: newTeams };
-    const newGamesList = [...games];
+    const newGamesList = [...safeGames];
     newGamesList[gameIndex] = newGame;
     setGames(newGamesList);
 
@@ -689,7 +692,8 @@ const App: React.FC = () => {
 
   const startCompanyGame = () => {
     if (!activeGame) return;
-    const activeTeams = activeGame.teams.filter(t => t.players.length > 0);
+    const gameTeams = activeGame.teams || [];
+    const activeTeams = gameTeams.filter(t => (t.players || []).length > 0);
     if (activeTeams.length < 1) {
       alert("최소 1팀 이상 참가해야 합니다.");
       return;
@@ -707,15 +711,16 @@ const App: React.FC = () => {
       alert("모든 팀이 숫자를 배치할 때까지 기다려주세요.");
       return;
     }
-    const newUsedCardIndices = [...activeGame.usedCardIndices, cardIndex];
-    const newAvailable = [...activeGame.availableNumbers]; 
-    const newTeams = activeGame.teams.map(t => ({ ...t, hasPlacedCurrentNumber: false, placedBy: null }));
+    const gameTeams = activeGame.teams || [];
+    const newUsedCardIndices = [...(activeGame.usedCardIndices || []), cardIndex];
+    const newAvailable = [...(activeGame.availableNumbers || [])];
+    const newTeams = gameTeams.map(t => ({ ...t, hasPlacedCurrentNumber: false, placedBy: null }));
 
     updateGame(activeGame.companyName, {
       currentNumber: num,
-      usedNumbers: [...activeGame.usedNumbers, num],
+      usedNumbers: [...(activeGame.usedNumbers || []), num],
       usedCardIndices: newUsedCardIndices,
-      availableNumbers: newAvailable, 
+      availableNumbers: newAvailable,
       waitingForPlacements: true,
       currentRound: activeGame.currentRound + 1,
       teams: newTeams
@@ -724,19 +729,22 @@ const App: React.FC = () => {
 
   const placeNumberInTeam = (position: number) => {
     if (!activeGame || !session.myTeamId || !session.myPlayerId) return;
+    const gameTeams = activeGame.teams || [];
     const teamIdx = session.myTeamId - 1;
-    const team = activeGame.teams[teamIdx];
-    
+    const team = gameTeams[teamIdx];
+    if (!team) return;
+
     if (!activeGame.gameStarted || activeGame.gameEnded) return;
     if (team.hasPlacedCurrentNumber) return;
-    if (team.board[position] !== null) return;
+    const teamBoard = team.board || Array(20).fill(null);
+    if (teamBoard[position] !== null) return;
     if (!activeGame.currentNumber) return;
 
-    const newBoard = [...team.board];
+    const newBoard = [...teamBoard];
     newBoard[position] = activeGame.currentNumber;
     const newScore = calculatePlayerScore(newBoard);
 
-    const newTeams = [...activeGame.teams];
+    const newTeams = [...gameTeams];
     newTeams[teamIdx] = {
       ...team,
       board: newBoard,
@@ -745,7 +753,7 @@ const App: React.FC = () => {
       placedBy: session.myPlayerName
     };
 
-    const activeTeamsList = newTeams.filter(t => t.players.length > 0);
+    const activeTeamsList = newTeams.filter(t => (t.players || []).length > 0);
     const allPlaced = activeTeamsList.every(t => t.hasPlacedCurrentNumber);
 
     let updates: Partial<GameState> = {
@@ -792,9 +800,11 @@ const App: React.FC = () => {
   };
 
   // Determine active player data.
-  const activePlayerTeam = activeGame && session.myTeamId ? activeGame.teams[session.myTeamId - 1] : null;
-  const myself = activePlayerTeam && session.myPlayerId 
-    ? (activePlayerTeam.players.find(p => p.id === session.myPlayerId) || { id: 'spectator', name: session.myPlayerName || '관리자', joinedAt: '' }) 
+  const activeGameTeams = activeGame?.teams || [];
+  const activePlayerTeam = activeGame && session.myTeamId ? activeGameTeams[session.myTeamId - 1] : null;
+  const activePlayerTeamPlayers = activePlayerTeam?.players || [];
+  const myself = activePlayerTeam && session.myPlayerId
+    ? (activePlayerTeamPlayers.find(p => p.id === session.myPlayerId) || { id: 'spectator', name: session.myPlayerName || '관리자', joinedAt: '' })
     : null;
 
   const canSwitchToHostView = currentUser.role === 'ADMIN' || (activeGame && activeGame.creatorId === currentUser.id);
