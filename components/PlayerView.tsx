@@ -148,56 +148,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
           const teamPlayers = isMyTeam ? safeMyTeam.players : (Array.isArray(team.players) ? team.players : []);
           const scoringGroups = getScoringGroups(teamBoard);
 
-          // Debug info for my team - show raw board data to trace the issue
-          const rawBoardType = typeof myTeam?.board;
-          const rawBoardIsArray = Array.isArray(myTeam?.board);
-          const rawBoardLength = rawBoardIsArray ? (myTeam?.board as any[]).length : 'N/A';
-          const rawBoardKeys = !rawBoardIsArray && myTeam?.board && typeof myTeam?.board === 'object'
-            ? Object.keys(myTeam?.board).join(',')
-            : 'N/A';
-
-          // Compare myTeam.board (prop) vs game.teams board
-          const gameTeamBoard = game.teams?.[Number(myTeam?.teamNumber) - 1]?.board;
-          const boardsMatch = JSON.stringify(myTeam?.board) === JSON.stringify(gameTeamBoard);
-
-          // Count cells with different values
-          const nullCells = teamBoard.filter(c => c === null).length;
-          const undefinedCells = teamBoard.filter(c => c === undefined).length;
-          const falsyCells = teamBoard.filter(c => !c && c !== 0).length;
-
-          const debugInfo = {
-            isMyTeam,
-            myTeamNum,
-            teamNum: team.teamNumber,
-            currentNum: game.currentNumber,
-            hasPlaced: safeMyTeam.hasPlacedCurrentNumber,
-            gameEnded: game.gameEnded,
-            emptyCells: nullCells,
-            rawBoardType,
-            rawBoardIsArray,
-            rawBoardLength,
-            rawBoardKeys,
-            undefinedCells,
-            falsyCells,
-            boardsMatch,
-            // Show first 5 and last 5 board values to check data
-            boardStart: teamBoard.slice(0, 5).map(v => v === null ? 'N' : v === undefined ? 'U' : v).join(','),
-            boardEnd: teamBoard.slice(15, 20).map(v => v === null ? 'N' : v === undefined ? 'U' : v).join(',')
-          };
-
           return (
             <div key={team.teamNumber} className={`relative transition-all duration-500 ${isMyTeam ? 'opacity-100 scale-100' : 'opacity-80 scale-95 grayscale-[0.3]'}`}>
-              {/* DEBUG INFO - 항상 첫번째 팀에 표시 */}
-              {debugInfo && sortedTeams.indexOf(team) === 0 && (
-                <div className="mb-2 p-2 bg-red-900/80 text-white text-[10px] font-mono rounded border border-red-500">
-                  <div>🔍 DEBUG: isMyTeam={String(debugInfo.isMyTeam)} | myTeamNum={debugInfo.myTeamNum} | teamNum={debugInfo.teamNum}</div>
-                  <div>currentNum={String(debugInfo.currentNum)} (type:{typeof debugInfo.currentNum}) | hasPlaced={String(debugInfo.hasPlaced)} | gameEnded={String(debugInfo.gameEnded)}</div>
-                  <div>emptyCells(null)={debugInfo.emptyCells} | undef={debugInfo.undefinedCells} | falsy={debugInfo.falsyCells}</div>
-                  <div>rawBoard: type={debugInfo.rawBoardType} | isArr={String(debugInfo.rawBoardIsArray)} | len={debugInfo.rawBoardLength} | propsMatch={String(debugInfo.boardsMatch)}</div>
-                  <div>board[0-4]:{debugInfo.boardStart} [15-19]:{debugInfo.boardEnd}</div>
-                  <div>canInteract조건: {debugInfo.isMyTeam && debugInfo.currentNum !== null && !debugInfo.hasPlaced && !debugInfo.gameEnded ? '✅ OK' : '❌ FAIL'}</div>
-                </div>
-              )}
               <div className="flex items-center justify-between mb-2 px-1">
                 <div className="flex items-center gap-2">
                   <div className={`px-2 py-1 rounded text-xs font-bold ${isMyTeam ? 'bg-cyan-600 text-white dark:bg-ai-primary dark:text-black' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
