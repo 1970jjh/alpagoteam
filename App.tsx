@@ -748,8 +748,16 @@ const App: React.FC = () => {
       placedBy: session.myPlayerName
     };
 
+    // Filter active teams and check if all have placed their number
+    // Use explicit === true check to handle undefined values from Firebase
     const activeTeamsList = newTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
-    const allPlaced = activeTeamsList.every(t => t.hasPlacedCurrentNumber);
+    const allPlaced = activeTeamsList.every(t => t.hasPlacedCurrentNumber === true);
+
+    console.log('Placement check:', {
+      activeTeams: activeTeamsList.length,
+      allPlaced,
+      teamStatuses: activeTeamsList.map(t => ({ teamNumber: t.teamNumber, hasPlaced: t.hasPlacedCurrentNumber }))
+    });
 
     let updates: Partial<GameState> = {
       teams: newTeams,
