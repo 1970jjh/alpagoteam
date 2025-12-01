@@ -427,8 +427,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkGames = () => {
       const now = new Date();
-      setGames(prevGames => 
-        prevGames
+      setGames(prevGames => {
+        const safePrevGames = Array.isArray(prevGames) ? prevGames : [];
+        return safePrevGames
           .map(game => {
             const createdAt = new Date(game.createdAt);
             const diffMs = now.getTime() - createdAt.getTime();
@@ -445,9 +446,9 @@ const App: React.FC = () => {
              const createdAt = new Date(game.createdAt);
              const diffMs = now.getTime() - createdAt.getTime();
              const diffHours = diffMs / (1000 * 60 * 60);
-             return diffHours < 168; 
-          })
-      );
+             return diffHours < 168;
+          });
+      });
     };
 
     const interval = setInterval(checkGames, 60000); // Check every minute

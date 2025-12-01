@@ -130,35 +130,38 @@ export const getScoringIndices = (board: (number | string | null)[]) => {
 }
 
 export const checkGameEnd = (gameData: GameState) => {
-  const teamsWithPlayers = gameData.teams.filter(t => t.players.length > 0);
-  
+  const safeTeams = gameData.teams || [];
+  const teamsWithPlayers = safeTeams.filter(t => (t.players || []).length > 0);
+
   // 20 rounds complete
   if (gameData.currentRound >= 20) {
     return true;
   }
-  
+
   // All active boards full
   let allBoardsFull = true;
   for (let i = 0; i < teamsWithPlayers.length; i++) {
-    for (let j = 0; j < teamsWithPlayers[i].board.length; j++) {
-      if (teamsWithPlayers[i].board[j] === null) {
+    const board = teamsWithPlayers[i].board || Array(20).fill(null);
+    for (let j = 0; j < board.length; j++) {
+      if (board[j] === null) {
         allBoardsFull = false;
         break;
       }
     }
     if (!allBoardsFull) break;
   }
-  
+
   return allBoardsFull;
 };
 
 export const calculateFinalRanking = (gameData: GameState) => {
-  const teamsWithPlayers = gameData.teams
-    .filter(t => t.players.length > 0)
+  const safeTeams = gameData.teams || [];
+  const teamsWithPlayers = safeTeams
+    .filter(t => (t.players || []).length > 0)
     .map(t => ({
       teamNumber: t.teamNumber,
       score: t.score,
-      players: t.players
+      players: t.players || []
     }));
   
   // Sort by score descending
