@@ -149,7 +149,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
           const scoringGroups = getScoringGroups(teamBoard);
 
           // Debug info for my team
-          const debugInfo = isMyTeam ? {
+          const debugInfo = {
             isMyTeam,
             myTeamNum,
             teamNum: team.teamNumber,
@@ -157,16 +157,17 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
             hasPlaced: safeMyTeam.hasPlacedCurrentNumber,
             gameEnded: game.gameEnded,
             emptyCells: teamBoard.filter(c => c === null).length
-          } : null;
-          
+          };
+
           return (
             <div key={team.teamNumber} className={`relative transition-all duration-500 ${isMyTeam ? 'opacity-100 scale-100' : 'opacity-80 scale-95 grayscale-[0.3]'}`}>
-              {/* DEBUG INFO - 문제 발생시 이 정보를 스크린샷으로 보내주세요 */}
-              {isMyTeam && debugInfo && (
+              {/* DEBUG INFO - 항상 첫번째 팀에 표시 */}
+              {debugInfo && sortedTeams.indexOf(team) === 0 && (
                 <div className="mb-2 p-2 bg-red-900/80 text-white text-[10px] font-mono rounded border border-red-500">
                   <div>🔍 DEBUG: isMyTeam={String(debugInfo.isMyTeam)} | myTeamNum={debugInfo.myTeamNum} | teamNum={debugInfo.teamNum}</div>
                   <div>currentNum={String(debugInfo.currentNum)} (type:{typeof debugInfo.currentNum}) | hasPlaced={String(debugInfo.hasPlaced)} | gameEnded={String(debugInfo.gameEnded)}</div>
                   <div>emptyCells={debugInfo.emptyCells} | canInteract조건: {debugInfo.isMyTeam && debugInfo.currentNum !== null && !debugInfo.hasPlaced && !debugInfo.gameEnded ? '✅ OK' : '❌ FAIL'}</div>
+                  <div>safeMyTeam.teamNumber={safeMyTeam.teamNumber} | props myTeam.teamNumber={String(myTeam?.teamNumber)}</div>
                 </div>
               )}
               <div className="flex items-center justify-between mb-2 px-1">
