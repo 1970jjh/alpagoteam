@@ -85,33 +85,27 @@ const STORAGE_KEYS = {
   LOGS: 'collective_intelligence_logs',
 };
 
-// --- HELPER: Check if localStorage is available ---
+// --- HELPER: Check if localStorage is available (lazy evaluation) ---
 const isLocalStorageAvailable = (): boolean => {
   try {
-    if (typeof localStorage === 'undefined') return false;
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return false;
+    }
     const testKey = '__storage_test__';
     localStorage.setItem(testKey, testKey);
     localStorage.removeItem(testKey);
     return true;
   } catch (e) {
-    console.warn('localStorage is not available:', e);
+    // Storage is not available (private mode, security restrictions, etc.)
     return false;
   }
 };
 
-// Initialize storage availability check safely
-let storageAvailable = false;
-try {
-  storageAvailable = isLocalStorageAvailable();
-} catch (e) {
-  console.warn('Failed to check localStorage availability:', e);
-  storageAvailable = false;
-}
-
 // --- HELPER: Load from localStorage with fallback ---
 const loadFromStorage = <T,>(key: string, fallback: T): T => {
-  if (!storageAvailable) return fallback;
   try {
+    if (!isLocalStorageAvailable()) return fallback;
     const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -126,18 +120,18 @@ const loadFromStorage = <T,>(key: string, fallback: T): T => {
       return parsed;
     }
   } catch (e) {
-    console.error(`Failed to load ${key} from localStorage:`, e);
+    // Silently fail and return fallback
   }
   return fallback;
 };
 
 // --- HELPER: Save to localStorage ---
 const saveToStorage = <T,>(key: string, data: T): void => {
-  if (!storageAvailable) return;
   try {
+    if (!isLocalStorageAvailable()) return;
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
-    console.error(`Failed to save ${key} to localStorage:`, e);
+    // Silently fail - storage might be full or unavailable
   }
 };
 
