@@ -145,35 +145,36 @@ const App: React.FC = () => {
   // Check if Firebase is configured
   const useFirebase = isFirebaseConfigured();
 
-  // Global Data State - Initialize from localStorage or fallback to initial data
-  // Extra safety: ensure we always have valid arrays
-  const [games, setGames] = useState<GameState[]>(() => {
+  // Global Data State - Initialize with empty arrays for safety
+  // Data will be loaded from Firebase or localStorage in useEffect
+  const [games, setGames] = useState<GameState[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // SAFETY: Always ensure arrays are valid (never undefined)
+  const safeGames = Array.isArray(games) ? games : [];
+  const safeMembers = Array.isArray(members) ? members : [];
+  const safeLogs = Array.isArray(logs) ? logs : [];
+
+  // Load initial data from localStorage (runs once on mount)
+  useEffect(() => {
     try {
-      const loaded = loadFromStorage(STORAGE_KEYS.GAMES, INITIAL_GAMES);
-      return Array.isArray(loaded) ? loaded : INITIAL_GAMES;
+      const loadedGames = loadFromStorage(STORAGE_KEYS.GAMES, INITIAL_GAMES);
+      const loadedMembers = loadFromStorage(STORAGE_KEYS.MEMBERS, INITIAL_MEMBERS);
+      const loadedLogs = loadFromStorage(STORAGE_KEYS.LOGS, INITIAL_LOGS);
+
+      setGames(Array.isArray(loadedGames) ? loadedGames : INITIAL_GAMES);
+      setMembers(Array.isArray(loadedMembers) ? loadedMembers : INITIAL_MEMBERS);
+      setLogs(Array.isArray(loadedLogs) ? loadedLogs : INITIAL_LOGS);
     } catch (e) {
-      console.error('Failed to initialize games:', e);
-      return INITIAL_GAMES;
+      console.error('Failed to load from localStorage, using defaults:', e);
+      setGames(INITIAL_GAMES);
+      setMembers(INITIAL_MEMBERS);
+      setLogs(INITIAL_LOGS);
     }
-  });
-  const [members, setMembers] = useState<Member[]>(() => {
-    try {
-      const loaded = loadFromStorage(STORAGE_KEYS.MEMBERS, INITIAL_MEMBERS);
-      return Array.isArray(loaded) ? loaded : INITIAL_MEMBERS;
-    } catch (e) {
-      console.error('Failed to initialize members:', e);
-      return INITIAL_MEMBERS;
-    }
-  });
-  const [logs, setLogs] = useState<AccessLog[]>(() => {
-    try {
-      const loaded = loadFromStorage(STORAGE_KEYS.LOGS, INITIAL_LOGS);
-      return Array.isArray(loaded) ? loaded : INITIAL_LOGS;
-    } catch (e) {
-      console.error('Failed to initialize logs:', e);
-      return INITIAL_LOGS;
-    }
-  });
+    setIsDataLoaded(true);
+  }, []);
 
   // Track if data is from Firebase (to prevent re-saving)
   const isFirebaseUpdate = useRef(false);
@@ -217,7 +218,7 @@ const App: React.FC = () => {
   });
 
   // Derived State
-  const activeGame = games.find(g => generateGameId(g.companyName) === session.gameId) || null;
+  const activeGame = safeGames.find(g => generateGameId(g.companyName) === session.gameId) || null;
   const isAuthorized = currentUser.role === 'ADMIN' || currentUser.role === 'MEMBER';
 
   // --- TAB STATE (DEFAULT: JOIN) ---
@@ -374,7 +375,7 @@ const App: React.FC = () => {
   // --- SECURITY EFFECT: Kick out deleted/suspended members ---
   useEffect(() => {
     if (currentUser.role === 'MEMBER') {
-      const currentMember = members.find(m => m.id === currentUser.id);
+      const currentMember = safeMembers.find(m => m.id === currentUser.id);
       
       // If member is not found in the list (Deleted) OR status is suspended
       if (!currentMember) {
@@ -388,7 +389,7 @@ const App: React.FC = () => {
   }, [members, currentUser]);
 
   const completeMemberLogin = (email: string) => {
-      const member = members.find(m => m.email.toLowerCase() === email.toLowerCase());
+      const member = safeMembers.find(m => m.email.toLowerCase() === email.toLowerCase());
       if (!member) {
         alert('등록되지 않은 이메일입니다. 관리자에게 문의하여 회원 등록을 진행해주세요.');
         return;
@@ -498,7 +499,7 @@ const App: React.FC = () => {
       }
 
       // 1. PRE-CHECK: Is this email registered in our system?
-      const checkMember = members.find(m => m.email.toLowerCase() === loginEmail.trim().toLowerCase());
+      const checkMember = safeMembers.find(m => m.email.toLowerCase() === loginEmail.trim().toLowerCase());
       if (!checkMember) {
          alert('등록되지 않은 이메일입니다. 관리자에게 문의하여 회원 등록을 진행해주세요.');
          return;
@@ -543,18 +544,18 @@ const App: React.FC = () => {
   };
 
   const deleteMember = (id: string) => {
-      const target = members.find(m => m.id === id);
+      const target = safeMembers.find(m => m.id === id);
       if (!target) return;
-      
+
       // Directly remove from state. This triggers the useEffect in App to kick the user out if they are logged in.
       setMembers(prev => prev.filter(m => m.id !== id));
       addLog('MEMBER_ACTION', `회원 삭제: ${target.name} (${target.email})`);
   };
 
   const extendMember = (id: string) => {
-      const target = members.find(m => m.id === id);
+      const target = safeMembers.find(m => m.id === id);
       if (!target) return;
-      
+
       const currentExpiry = new Date(target.expiresAt);
       const newExpiry = new Date(currentExpiry.setMonth(currentExpiry.getMonth() + 6)).toISOString();
 
@@ -563,7 +564,7 @@ const App: React.FC = () => {
   };
 
   const renewMember = (id: string) => {
-      const target = members.find(m => m.id === id);
+      const target = safeMembers.find(m => m.id === id);
       if (!target) return;
       
       const newExpiry = new Date(Date.now() + (1000 * 60 * 60 * 24 * 30 * 6)).toISOString();
@@ -595,7 +596,7 @@ const App: React.FC = () => {
     }
 
     const gameId = generateGameId(companyName);
-    if (games.some(g => generateGameId(g.companyName) === gameId)) {
+    if (safeGames.some(g => generateGameId(g.companyName) === gameId)) {
       alert("이미 존재하는 회사명입니다.");
       return;
     }
@@ -638,7 +639,7 @@ const App: React.FC = () => {
   };
 
   const joinTeam = (gameId: string, teamNumberIdx: number, playerName: string) => {
-    const gameIndex = games.findIndex(g => generateGameId(g.companyName) === gameId);
+    const gameIndex = safeGames.findIndex(g => generateGameId(g.companyName) === gameId);
     if (gameIndex === -1) return;
     
     if (!playerName.trim()) {
@@ -917,13 +918,13 @@ const App: React.FC = () => {
               <div className="space-y-4 animate-fade-in">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-sm font-bold text-slate-700 dark:text-gray-300">Active Games</h3>
-                  <button onClick={() => setGames([...games])} className="text-xs text-cyan-600 dark:text-ai-primary flex items-center gap-1 hover:text-cyan-800 dark:hover:text-white transition-colors">
+                  <button onClick={() => setGames([...safeGames])} className="text-xs text-cyan-600 dark:text-ai-primary flex items-center gap-1 hover:text-cyan-800 dark:hover:text-white transition-colors">
                     <RefreshCw className="w-3 h-3" /> Refresh
                   </button>
                 </div>
 
                 <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
-                  {games.map(g => {
+                  {safeGames.map(g => {
                     const activeCount = g.teams.reduce((acc, t) => acc + t.players.length, 0);
                     const joinedTeams = g.teams.filter(t => t.players.length > 0).length;
                     return (
@@ -938,7 +939,7 @@ const App: React.FC = () => {
                           {joinedTeams}/{g.teamCount} Teams • {activeCount} Players
                         </p>
                         {!g.gameEnded && (
-                          <button 
+                          <button
                             onClick={() => setSelectedGameId(generateGameId(g.companyName))}
                             className="w-full py-2 bg-cyan-50 dark:bg-ai-primary/10 border border-cyan-200 dark:border-ai-primary/30 text-cyan-700 dark:text-ai-primary text-xs font-bold rounded hover:bg-cyan-100 dark:hover:bg-ai-primary dark:hover:text-black transition-all uppercase tracking-widest"
                           >
@@ -948,7 +949,7 @@ const App: React.FC = () => {
                       </div>
                     );
                   })}
-                  {games.length === 0 && (
+                  {safeGames.length === 0 && (
                      <div className="text-center py-8 text-gray-500 text-sm font-mono border border-dashed border-gray-300 dark:border-white/10 rounded-lg">
                        No active games found.
                      </div>
@@ -964,7 +965,7 @@ const App: React.FC = () => {
                  <div className="bg-cyan-50 dark:bg-ai-primary/5 p-4 rounded-lg border border-cyan-200 dark:border-ai-primary/20">
                    <p className="text-xs text-cyan-700 dark:text-ai-primary font-bold mb-1 font-mono uppercase">Selected Game</p>
                    <p className="text-lg font-bold text-slate-800 dark:text-white">
-                     {games.find(g => generateGameId(g.companyName) === selectedGameId)?.companyName}
+                     {safeGames.find(g => generateGameId(g.companyName) === selectedGameId)?.companyName}
                    </p>
                  </div>
 
@@ -981,7 +982,7 @@ const App: React.FC = () => {
                  <div>
                    <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Select Team</label>
                    <div className="grid grid-cols-4 gap-2 max-h-[150px] overflow-y-auto custom-scrollbar pr-1">
-                     {games.find(g => generateGameId(g.companyName) === selectedGameId)?.teams.map((t, i) => (
+                     {safeGames.find(g => generateGameId(g.companyName) === selectedGameId)?.teams.map((t, i) => (
                        <button
                          key={t.teamNumber}
                          onClick={() => setJoinTeamIdx(i)}
