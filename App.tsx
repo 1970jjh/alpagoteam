@@ -88,16 +88,25 @@ const STORAGE_KEYS = {
 // --- HELPER: Check if localStorage is available ---
 const isLocalStorageAvailable = (): boolean => {
   try {
+    if (typeof localStorage === 'undefined') return false;
     const testKey = '__storage_test__';
     localStorage.setItem(testKey, testKey);
     localStorage.removeItem(testKey);
     return true;
   } catch (e) {
+    console.warn('localStorage is not available:', e);
     return false;
   }
 };
 
-const storageAvailable = isLocalStorageAvailable();
+// Initialize storage availability check safely
+let storageAvailable = false;
+try {
+  storageAvailable = isLocalStorageAvailable();
+} catch (e) {
+  console.warn('Failed to check localStorage availability:', e);
+  storageAvailable = false;
+}
 
 // --- HELPER: Load from localStorage with fallback ---
 const loadFromStorage = <T,>(key: string, fallback: T): T => {
@@ -105,7 +114,16 @@ const loadFromStorage = <T,>(key: string, fallback: T): T => {
   try {
     const stored = localStorage.getItem(key);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Ensure we return a valid value, not null/undefined
+      if (parsed === null || parsed === undefined) {
+        return fallback;
+      }
+      // For arrays, ensure it's actually an array
+      if (Array.isArray(fallback) && !Array.isArray(parsed)) {
+        return fallback;
+      }
+      return parsed;
     }
   } catch (e) {
     console.error(`Failed to load ${key} from localStorage:`, e);
@@ -128,15 +146,34 @@ const App: React.FC = () => {
   const useFirebase = isFirebaseConfigured();
 
   // Global Data State - Initialize from localStorage or fallback to initial data
-  const [games, setGames] = useState<GameState[]>(() =>
-    loadFromStorage(STORAGE_KEYS.GAMES, INITIAL_GAMES)
-  );
-  const [members, setMembers] = useState<Member[]>(() =>
-    loadFromStorage(STORAGE_KEYS.MEMBERS, INITIAL_MEMBERS)
-  );
-  const [logs, setLogs] = useState<AccessLog[]>(() =>
-    loadFromStorage(STORAGE_KEYS.LOGS, INITIAL_LOGS)
-  );
+  // Extra safety: ensure we always have valid arrays
+  const [games, setGames] = useState<GameState[]>(() => {
+    try {
+      const loaded = loadFromStorage(STORAGE_KEYS.GAMES, INITIAL_GAMES);
+      return Array.isArray(loaded) ? loaded : INITIAL_GAMES;
+    } catch (e) {
+      console.error('Failed to initialize games:', e);
+      return INITIAL_GAMES;
+    }
+  });
+  const [members, setMembers] = useState<Member[]>(() => {
+    try {
+      const loaded = loadFromStorage(STORAGE_KEYS.MEMBERS, INITIAL_MEMBERS);
+      return Array.isArray(loaded) ? loaded : INITIAL_MEMBERS;
+    } catch (e) {
+      console.error('Failed to initialize members:', e);
+      return INITIAL_MEMBERS;
+    }
+  });
+  const [logs, setLogs] = useState<AccessLog[]>(() => {
+    try {
+      const loaded = loadFromStorage(STORAGE_KEYS.LOGS, INITIAL_LOGS);
+      return Array.isArray(loaded) ? loaded : INITIAL_LOGS;
+    } catch (e) {
+      console.error('Failed to initialize logs:', e);
+      return INITIAL_LOGS;
+    }
+  });
 
   // Track if data is from Firebase (to prevent re-saving)
   const isFirebaseUpdate = useRef(false);
@@ -219,30 +256,30 @@ const App: React.FC = () => {
       }
 
       // Accept Firebase data (even empty arrays - don't keep mock data)
-      if (newGames) {
-        isFirebaseUpdate.current = true;
-        setGames(newGames.length > 0 ? newGames : []);
-        // Also save to localStorage as cache
-        saveToStorage(STORAGE_KEYS.GAMES, newGames);
-      }
+      // Safety check: ensure newGames is an array
+      const safeGames = Array.isArray(newGames) ? newGames : [];
+      isFirebaseUpdate.current = true;
+      setGames(safeGames);
+      // Also save to localStorage as cache
+      saveToStorage(STORAGE_KEYS.GAMES, safeGames);
     });
 
     // Subscribe to members
     const unsubscribeMembers = subscribeToMembers((newMembers) => {
-      if (newMembers) {
-        isFirebaseUpdate.current = true;
-        setMembers(newMembers);
-        saveToStorage(STORAGE_KEYS.MEMBERS, newMembers);
-      }
+      // Safety check: ensure newMembers is an array
+      const safeMembers = Array.isArray(newMembers) ? newMembers : [];
+      isFirebaseUpdate.current = true;
+      setMembers(safeMembers.length > 0 ? safeMembers : INITIAL_MEMBERS);
+      saveToStorage(STORAGE_KEYS.MEMBERS, safeMembers.length > 0 ? safeMembers : INITIAL_MEMBERS);
     });
 
     // Subscribe to logs
     const unsubscribeLogs = subscribeToLogs((newLogs) => {
-      if (newLogs) {
-        isFirebaseUpdate.current = true;
-        setLogs(newLogs);
-        saveToStorage(STORAGE_KEYS.LOGS, newLogs);
-      }
+      // Safety check: ensure newLogs is an array
+      const safeLogs = Array.isArray(newLogs) ? newLogs : [];
+      isFirebaseUpdate.current = true;
+      setLogs(safeLogs.length > 0 ? safeLogs : INITIAL_LOGS);
+      saveToStorage(STORAGE_KEYS.LOGS, safeLogs.length > 0 ? safeLogs : INITIAL_LOGS);
     });
 
     return () => {
