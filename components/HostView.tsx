@@ -171,13 +171,13 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                 ) : !game.gameEnded ? (
                   <div className="flex flex-col h-full overflow-hidden">
                     {/* Current Number Status */}
-                    <div className="text-center p-2 bg-gray-900/5 dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5 mb-3 shrink-0 flex items-center justify-between px-4">
+                    <div className="text-center p-2 bg-gray-900/5 dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/5 mb-2 shrink-0 flex items-center justify-between px-3">
                       <div className="text-left">
-                          <span className="text-[10px] font-mono text-gray-500 dark:text-ai-dim uppercase tracking-[0.2em] block">현재 출제된 숫자</span>
+                          <span className="text-xs font-mono text-gray-600 dark:text-ai-dim uppercase tracking-wide block font-bold">현재 출제된 숫자</span>
                           {game.waitingForPlacements ? (
-                            <span className="text-red-500 dark:text-ai-accent text-[10px] animate-pulse">배치 대기 중...</span>
+                            <span className="text-red-500 dark:text-ai-accent text-xs animate-pulse font-semibold">배치 대기 중...</span>
                           ) : (
-                            <span className="text-green-600 dark:text-ai-success text-[10px]">출제 가능</span>
+                            <span className="text-green-600 dark:text-ai-success text-xs font-semibold">출제 가능</span>
                           )}
                       </div>
                       <div className="text-4xl font-display font-bold text-green-600 dark:text-ai-success neon-green-text">
@@ -188,31 +188,31 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                     {/* Number Selector Grid - 40 Cards */}
                     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                        <div className="flex justify-between items-center mb-1 shrink-0">
-                          <p className="text-xs font-mono text-gray-500 dark:text-ai-dim uppercase">
+                          <p className="text-sm font-mono text-gray-600 dark:text-ai-dim font-bold">
                             <span>다음 숫자 선택</span>
-                            <span className="text-slate-900 dark:text-white ml-2">{pendingSelection ? `선택됨: ${pendingSelection.val}` : ''}</span>
+                            <span className="text-purple-600 dark:text-ai-secondary ml-2">{pendingSelection ? `선택됨: ${pendingSelection.val}` : ''}</span>
                           </p>
-                          <button 
+                          <button
                              onClick={handleRandomSelect}
                              disabled={game.waitingForPlacements}
-                             className="text-xs flex items-center gap-1 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 px-2 py-1 rounded text-purple-600 dark:text-ai-secondary font-bold transition-colors disabled:opacity-50"
+                             className="text-sm flex items-center gap-1 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 px-2 py-1 rounded text-purple-600 dark:text-ai-secondary font-bold transition-colors disabled:opacity-50"
                           >
-                             <Dices className="w-3 h-3" /> 🎲 랜덤 선택
+                             <Dices className="w-4 h-4" /> 🎲 랜덤 선택
                           </button>
                        </div>
 
-                       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar grid grid-cols-5 gap-1 content-start">
+                       <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar grid grid-cols-5 gap-0.5 content-start">
                          {FULL_DECK.map((val, idx) => {
                            const isUsed = safeUsedCardIndices.includes(idx);
                            const isSelected = pendingSelection?.idx === idx;
-                           
+
                            return (
                              <button
                                key={idx}
                                onClick={() => !game.waitingForPlacements && !isUsed && setPendingSelection({ val, idx })}
                                disabled={game.waitingForPlacements || isUsed}
                                className={`
-                                 aspect-square rounded-md text-xs sm:text-sm font-mono font-bold transition-all border relative flex items-center justify-center
+                                 aspect-[1/0.85] rounded text-sm font-mono font-bold transition-all border relative flex items-center justify-center
                                  ${isUsed
                                    ? 'bg-gray-200 dark:bg-black/40 border-gray-300 dark:border-white/5 text-gray-400 dark:text-gray-800 cursor-not-allowed'
                                    : isSelected
@@ -225,22 +225,22 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                            );
                          })}
                        </div>
-                       
-                       <div className="mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
+
+                       <div className="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-white/10 shrink-0">
                          <button
                            onClick={handleSubmitNumber}
                            disabled={game.waitingForPlacements || pendingSelection === null}
                            className={`
-                             w-full py-3 rounded-lg font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2
+                             w-full py-2.5 rounded-lg font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2
                              ${game.waitingForPlacements || pendingSelection === null
                                ? 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed'
                                : 'bg-gradient-to-r from-blue-600 to-cyan-500 dark:to-ai-primary text-white hover:scale-[1.02] hover:shadow-cyan-500/30'}
                            `}
                          >
-                           {game.waitingForPlacements 
-                             ? '배치 대기 중...' 
-                             : pendingSelection 
-                               ? '출제하기' 
+                           {game.waitingForPlacements
+                             ? '배치 대기 중...'
+                             : pendingSelection
+                               ? '출제하기'
                                : '선택 필요'}
                          </button>
                        </div>
