@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { GameState, Team } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
 import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices } from 'lucide-react';
-import { createFullDeck, getScoringGroups } from '../utils';
+import { createFullDeck, getScoringGroups, restoreBoardArray } from '../utils';
 
 interface HostViewProps {
   game: GameState;
@@ -18,7 +18,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
   const safeTeams = gameTeams.map(t => ({
     ...t,
     players: Array.isArray(t.players) ? t.players : [],
-    board: Array.isArray(t.board) ? t.board : Array(20).fill(null)
+    board: restoreBoardArray(t.board)
   }));
   const activeTeams = safeTeams.filter(t => t.players.length > 0);
   const sortedTeams = [...activeTeams].sort((a, b) => b.score - a.score);
@@ -345,7 +345,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                         </div>
 
                         {/* Cells */}
-                        {(Array.isArray(team.board) ? team.board : Array(20).fill(null)).map((cell, cIdx) => {
+                        {restoreBoardArray(team.board).map((cell, cIdx) => {
                            const style = getGridStyle(cIdx);
                            const isFilled = cell !== null;
                            const groupID = scoringGroups.get(cIdx);
@@ -414,10 +414,10 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                     </div>
                 </div>
 
-                {(Array.isArray(viewingTeam.board) ? viewingTeam.board : Array(20).fill(null)).map((cell, idx) => {
+                {restoreBoardArray(viewingTeam.board).map((cell, idx) => {
                    const style = getGridStyle(idx);
                    const isFilled = cell !== null;
-                   const viewingBoard = Array.isArray(viewingTeam.board) ? viewingTeam.board : Array(20).fill(null);
+                   const viewingBoard = restoreBoardArray(viewingTeam.board);
                    const groupID = getScoringGroups(viewingBoard).get(idx);
                    const isScoring = groupID !== undefined;
                    const colorClass = isScoring ? getGroupColorClass(groupID) : 'bg-white dark:bg-black/60 border-gray-300 dark:border-white/20 text-slate-900 dark:text-white';

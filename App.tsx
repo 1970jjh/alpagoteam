@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GameState, AppContextState, Team, Player, UserSession, Member, AccessLog } from './types';
-import { createFullDeck, calculatePlayerScore, checkGameEnd, generateGameId, calculateFinalRanking, generatePlayerId } from './utils';
+import { createFullDeck, calculatePlayerScore, checkGameEnd, generateGameId, calculateFinalRanking, generatePlayerId, restoreBoardArray } from './utils';
 import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
 import { PlayerView } from './components/PlayerView';
@@ -737,7 +737,7 @@ const App: React.FC = () => {
 
     if (!activeGame.gameStarted || activeGame.gameEnded) return;
     if (team.hasPlacedCurrentNumber) return;
-    const teamBoard = Array.isArray(team.board) ? team.board : Array(20).fill(null);
+    const teamBoard = restoreBoardArray(team.board);
     if (teamBoard[position] !== null) return;
     if (!activeGame.currentNumber) return;
 

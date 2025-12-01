@@ -5,6 +5,45 @@ import { GameState, Team } from './types';
 // LOGIC PORTED FROM GOOGLE APPS SCRIPT
 // ==========================================
 
+/**
+ * Restores a board array from Firebase data.
+ * Firebase converts sparse arrays with null values to objects like {2: 5, 10: 15}
+ * This function ensures we always get a proper 20-element array back.
+ */
+export const restoreBoardArray = (board: any): (number | string | null)[] => {
+  // If it's already a proper 20-element array, return a copy
+  if (Array.isArray(board) && board.length === 20) {
+    return [...board];
+  }
+
+  // Create a fresh 20-element array filled with null
+  const restoredBoard: (number | string | null)[] = Array(20).fill(null);
+
+  // If board is an array but not 20 elements, copy existing values
+  if (Array.isArray(board)) {
+    board.forEach((value, index) => {
+      if (index < 20 && value !== undefined) {
+        restoredBoard[index] = value;
+      }
+    });
+    return restoredBoard;
+  }
+
+  // If board is an object (Firebase converted sparse array to object)
+  if (board && typeof board === 'object') {
+    Object.keys(board).forEach(key => {
+      const index = parseInt(key, 10);
+      if (!isNaN(index) && index >= 0 && index < 20) {
+        restoredBoard[index] = board[key];
+      }
+    });
+    return restoredBoard;
+  }
+
+  // Default: return empty 20-element array
+  return restoredBoard;
+};
+
 export const generateGameId = (companyName: string) => {
   return companyName.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 };
@@ -141,7 +180,7 @@ export const checkGameEnd = (gameData: GameState) => {
   // All active boards full
   let allBoardsFull = true;
   for (let i = 0; i < teamsWithPlayers.length; i++) {
-    const board = Array.isArray(teamsWithPlayers[i].board) ? teamsWithPlayers[i].board : Array(20).fill(null);
+    const board = restoreBoardArray(teamsWithPlayers[i].board);
     for (let j = 0; j < board.length; j++) {
       if (board[j] === null) {
         allBoardsFull = false;
