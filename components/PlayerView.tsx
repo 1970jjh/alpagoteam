@@ -32,16 +32,20 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
 
   // Ensure all teams have players and board arrays (Firebase may return objects instead of arrays)
   const gameTeams = Array.isArray(game.teams) ? game.teams : [];
-  const safeTeams = gameTeams.map(t => ({
+  const safeTeams = gameTeams.map((t, idx) => ({
     ...t,
     players: Array.isArray(t.players) ? t.players : [],
     board: restoreBoardArray(t.board),
-    hasPlacedCurrentNumber: t.hasPlacedCurrentNumber ?? false
+    hasPlacedCurrentNumber: t.hasPlacedCurrentNumber ?? false,
+    // Ensure teamNumber is a number (Firebase may convert to string)
+    teamNumber: Number(t.teamNumber) || (idx + 1)
   }));
 
+  // Use Number() for comparison to handle type mismatch from Firebase
+  const myTeamNum = Number(safeMyTeam.teamNumber);
   const sortedTeams = [...safeTeams].sort((a, b) => {
-    if (a.teamNumber === safeMyTeam.teamNumber) return -1;
-    if (b.teamNumber === safeMyTeam.teamNumber) return 1;
+    if (a.teamNumber === myTeamNum) return -1;
+    if (b.teamNumber === myTeamNum) return 1;
     return a.teamNumber - b.teamNumber;
   });
 
@@ -138,7 +142,7 @@ export const PlayerView: React.FC<PlayerViewProps> = ({ game, team: myTeam, me, 
         )}
 
         {sortedTeams.map((team) => {
-          const isMyTeam = team.teamNumber === safeMyTeam.teamNumber;
+          const isMyTeam = team.teamNumber === myTeamNum;
           // For my team, prefer props data (safeMyTeam) over game.teams data due to Firebase sync timing
           const teamBoard = isMyTeam ? safeMyTeam.board : restoreBoardArray(team.board);
           const teamPlayers = isMyTeam ? safeMyTeam.players : (Array.isArray(team.players) ? team.players : []);
