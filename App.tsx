@@ -83,6 +83,7 @@ const STORAGE_KEYS = {
   GAMES: 'collective_intelligence_games',
   MEMBERS: 'collective_intelligence_members',
   LOGS: 'collective_intelligence_logs',
+  SESSION: 'collective_intelligence_session',
 };
 
 // --- HELPER: Check if localStorage is available (lazy evaluation) ---
@@ -201,14 +202,28 @@ const App: React.FC = () => {
   const [showGoogleSimulation, setShowGoogleSimulation] = useState(false);
   const [simulatedCandidate, setSimulatedCandidate] = useState<Member | null>(null);
 
-  // Game Session State
-  const [session, setSession] = useState<AppContextState & { gameId: string | null }>({
-    gameId: null,
-    game: null,
-    role: 'NONE',
-    myTeamId: null,
-    myPlayerId: null,
-    myPlayerName: null
+  // Game Session State - Load from localStorage if available
+  const [session, setSession] = useState<AppContextState & { gameId: string | null }>(() => {
+    const savedSession = loadFromStorage(STORAGE_KEYS.SESSION, null);
+    if (savedSession && savedSession.gameId) {
+      console.log('Restoring session from localStorage:', savedSession);
+      return {
+        gameId: savedSession.gameId,
+        game: null, // Will be populated from games state
+        role: savedSession.role || 'NONE',
+        myTeamId: savedSession.myTeamId,
+        myPlayerId: savedSession.myPlayerId,
+        myPlayerName: savedSession.myPlayerName
+      };
+    }
+    return {
+      gameId: null,
+      game: null,
+      role: 'NONE',
+      myTeamId: null,
+      myPlayerId: null,
+      myPlayerName: null
+    };
   });
 
   // Derived State
@@ -231,6 +246,43 @@ const App: React.FC = () => {
         document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+
+  // --- SESSION PERSISTENCE ---
+  // Save session to localStorage when it changes
+  useEffect(() => {
+    if (session.gameId) {
+      // Save session (excluding 'game' object which is derived from games state)
+      const sessionToSave = {
+        gameId: session.gameId,
+        role: session.role,
+        myTeamId: session.myTeamId,
+        myPlayerId: session.myPlayerId,
+        myPlayerName: session.myPlayerName
+      };
+      saveToStorage(STORAGE_KEYS.SESSION, sessionToSave);
+    } else {
+      // Clear session from storage when user exits game
+      saveToStorage(STORAGE_KEYS.SESSION, null);
+    }
+  }, [session.gameId, session.role, session.myTeamId, session.myPlayerId, session.myPlayerName]);
+
+  // Validate restored session - clear if game no longer exists
+  useEffect(() => {
+    if (session.gameId && isDataLoaded && safeGames.length > 0) {
+      const gameExists = safeGames.some(g => generateGameId(g.companyName) === session.gameId);
+      if (!gameExists) {
+        console.log('Saved game no longer exists, clearing session');
+        setSession({
+          gameId: null,
+          game: null,
+          role: 'NONE',
+          myTeamId: null,
+          myPlayerId: null,
+          myPlayerName: null
+        });
+      }
+    }
+  }, [session.gameId, isDataLoaded, safeGames]);
 
   // --- FIREBASE REAL-TIME SYNC (for cross-device sync) ---
   useEffect(() => {
