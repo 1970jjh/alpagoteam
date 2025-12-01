@@ -13,11 +13,12 @@ const firebaseConfig = {
   appId: "1:940729633848:web:8bec843c599a5467562acd"
 };
 
-// Initialize Firebase with error handling
+// Firebase state
 let app: FirebaseApp | null = null;
 let database: Database | null = null;
 let firebaseInitialized = false;
 
+// Initialize Firebase with error handling
 try {
   app = initializeApp(firebaseConfig);
   database = getDatabase(app);
@@ -33,54 +34,67 @@ export const isFirebaseConfigured = (): boolean => {
   return firebaseInitialized && firebaseConfig.apiKey !== "YOUR_API_KEY";
 };
 
-// Database references (only if initialized)
-const getGamesRef = () => database ? ref(database, 'games') : null;
-const getMembersRef = () => database ? ref(database, 'members') : null;
-const getLogsRef = () => database ? ref(database, 'logs') : null;
+// Helper to safely convert data to array
+const toArray = <T>(data: any): T[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object') return Object.values(data);
+  return [];
+};
 
 // --- GAMES ---
 export const subscribeToGames = (callback: (games: GameState[]) => void) => {
-  const gamesRef = getGamesRef();
-  if (!gamesRef) {
+  if (!firebaseInitialized || !database) {
     console.warn('Firebase not initialized, skipping games subscription');
-    return () => {}; // Return empty unsubscribe function
+    callback([]); // Still call callback with empty array
+    return () => {};
   }
 
-  return onValue(gamesRef, (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      callback(data);
-    } else {
+  try {
+    const gamesRef = ref(database, 'games');
+
+    return onValue(gamesRef, (snapshot) => {
+      try {
+        const data = snapshot.val();
+        callback(toArray<GameState>(data));
+      } catch (e) {
+        console.error('Error processing games data:', e);
+        callback([]);
+      }
+    }, (error) => {
+      console.error('Error subscribing to games:', error);
       callback([]);
-    }
-  }, (error) => {
-    console.error('Error subscribing to games:', error);
-  });
+    });
+  } catch (error) {
+    console.error('Error setting up games subscription:', error);
+    callback([]);
+    return () => {};
+  }
 };
 
 export const saveGames = async (games: GameState[]) => {
-  const gamesRef = getGamesRef();
-  if (!gamesRef) {
+  if (!firebaseInitialized || !database) {
     console.warn('Firebase not initialized, skipping save games');
     return;
   }
 
   try {
-    await set(gamesRef, games);
+    const gamesRef = ref(database, 'games');
+    await set(gamesRef, games || []);
   } catch (error) {
     console.error('Failed to save games to Firebase:', error);
   }
 };
 
 export const getGames = async (): Promise<GameState[]> => {
-  const gamesRef = getGamesRef();
-  if (!gamesRef) {
+  if (!firebaseInitialized || !database) {
     return [];
   }
 
   try {
+    const gamesRef = ref(database, 'games');
     const snapshot = await get(gamesRef);
-    return snapshot.val() || [];
+    return toArray<GameState>(snapshot.val());
   } catch (error) {
     console.error('Failed to get games from Firebase:', error);
     return [];
@@ -89,47 +103,57 @@ export const getGames = async (): Promise<GameState[]> => {
 
 // --- MEMBERS ---
 export const subscribeToMembers = (callback: (members: Member[]) => void) => {
-  const membersRef = getMembersRef();
-  if (!membersRef) {
+  if (!firebaseInitialized || !database) {
     console.warn('Firebase not initialized, skipping members subscription');
+    callback([]);
     return () => {};
   }
 
-  return onValue(membersRef, (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      callback(data);
-    } else {
+  try {
+    const membersRef = ref(database, 'members');
+
+    return onValue(membersRef, (snapshot) => {
+      try {
+        const data = snapshot.val();
+        callback(toArray<Member>(data));
+      } catch (e) {
+        console.error('Error processing members data:', e);
+        callback([]);
+      }
+    }, (error) => {
+      console.error('Error subscribing to members:', error);
       callback([]);
-    }
-  }, (error) => {
-    console.error('Error subscribing to members:', error);
-  });
+    });
+  } catch (error) {
+    console.error('Error setting up members subscription:', error);
+    callback([]);
+    return () => {};
+  }
 };
 
 export const saveMembers = async (members: Member[]) => {
-  const membersRef = getMembersRef();
-  if (!membersRef) {
+  if (!firebaseInitialized || !database) {
     console.warn('Firebase not initialized, skipping save members');
     return;
   }
 
   try {
-    await set(membersRef, members);
+    const membersRef = ref(database, 'members');
+    await set(membersRef, members || []);
   } catch (error) {
     console.error('Failed to save members to Firebase:', error);
   }
 };
 
 export const getMembers = async (): Promise<Member[]> => {
-  const membersRef = getMembersRef();
-  if (!membersRef) {
+  if (!firebaseInitialized || !database) {
     return [];
   }
 
   try {
+    const membersRef = ref(database, 'members');
     const snapshot = await get(membersRef);
-    return snapshot.val() || [];
+    return toArray<Member>(snapshot.val());
   } catch (error) {
     console.error('Failed to get members from Firebase:', error);
     return [];
@@ -138,47 +162,57 @@ export const getMembers = async (): Promise<Member[]> => {
 
 // --- LOGS ---
 export const subscribeToLogs = (callback: (logs: AccessLog[]) => void) => {
-  const logsRef = getLogsRef();
-  if (!logsRef) {
+  if (!firebaseInitialized || !database) {
     console.warn('Firebase not initialized, skipping logs subscription');
+    callback([]);
     return () => {};
   }
 
-  return onValue(logsRef, (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      callback(data);
-    } else {
+  try {
+    const logsRef = ref(database, 'logs');
+
+    return onValue(logsRef, (snapshot) => {
+      try {
+        const data = snapshot.val();
+        callback(toArray<AccessLog>(data));
+      } catch (e) {
+        console.error('Error processing logs data:', e);
+        callback([]);
+      }
+    }, (error) => {
+      console.error('Error subscribing to logs:', error);
       callback([]);
-    }
-  }, (error) => {
-    console.error('Error subscribing to logs:', error);
-  });
+    });
+  } catch (error) {
+    console.error('Error setting up logs subscription:', error);
+    callback([]);
+    return () => {};
+  }
 };
 
 export const saveLogs = async (logs: AccessLog[]) => {
-  const logsRef = getLogsRef();
-  if (!logsRef) {
+  if (!firebaseInitialized || !database) {
     console.warn('Firebase not initialized, skipping save logs');
     return;
   }
 
   try {
-    await set(logsRef, logs);
+    const logsRef = ref(database, 'logs');
+    await set(logsRef, logs || []);
   } catch (error) {
     console.error('Failed to save logs to Firebase:', error);
   }
 };
 
 export const getLogs = async (): Promise<AccessLog[]> => {
-  const logsRef = getLogsRef();
-  if (!logsRef) {
+  if (!firebaseInitialized || !database) {
     return [];
   }
 
   try {
+    const logsRef = ref(database, 'logs');
     const snapshot = await get(logsRef);
-    return snapshot.val() || [];
+    return toArray<AccessLog>(snapshot.val());
   } catch (error) {
     console.error('Failed to get logs from Firebase:', error);
     return [];
