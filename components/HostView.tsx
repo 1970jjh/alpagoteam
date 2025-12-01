@@ -407,7 +407,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                     <div className="text-center">
                       <p className="text-gray-500 dark:text-ai-dim mb-2">팀원 명단</p>
                       <div className="flex flex-wrap justify-center gap-2">
-                        {viewingTeam.players.map(p => (
+                        {(viewingTeam.players || []).map(p => (
                           <span key={p.id} className="px-2 py-1 bg-white dark:bg-white/10 rounded text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-transparent">{p.name}</span>
                         ))}
                       </div>
