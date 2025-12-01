@@ -6,7 +6,7 @@ import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
 import { PlayerView } from './components/PlayerView';
 import { AdminDashboard } from './components/AdminDashboard';
-import { Hexagon, RefreshCw, Building2, Lock, LogIn, UserCog, ShieldCheck, LogOut, Sun, Moon } from 'lucide-react';
+import { Hexagon, RefreshCw, Building2, Lock, LogIn, UserCog, ShieldCheck, LogOut, Sun, Moon, Trash2 } from 'lucide-react';
 import {
   isFirebaseConfigured,
   subscribeToGames,
@@ -613,11 +613,29 @@ const App: React.FC = () => {
   const renewMember = (id: string) => {
       const target = safeMembers.find(m => m.id === id);
       if (!target) return;
-      
+
       const newExpiry = new Date(Date.now() + (1000 * 60 * 60 * 24 * 30 * 6)).toISOString();
 
       setMembers(prev => prev.map(m => m.id === id ? { ...m, expiresAt: newExpiry } : m));
       addLog('MEMBER_ACTION', `기간 재설정 (오늘부터 6개월): ${target.name}`);
+  };
+
+  // Admin-only: Delete a game room completely
+  const deleteGame = (gameId: string) => {
+    if (currentUser.role !== 'ADMIN') {
+      alert('게임 삭제는 관리자만 가능합니다.');
+      return;
+    }
+
+    const targetGame = safeGames.find(g => generateGameId(g.companyName) === gameId);
+    if (!targetGame) return;
+
+    if (!confirm(`"${targetGame.companyName}" 게임을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setGames(prev => prev.filter(g => generateGameId(g.companyName) !== gameId));
+    addLog('DELETE_GAME', `게임 삭제: ${targetGame.companyName}`, { relatedGameName: targetGame.companyName });
   };
 
   // --- GAME LOGIC ---
@@ -997,9 +1015,23 @@ const App: React.FC = () => {
                       <div key={generateGameId(g.companyName)} className="border border-gray-200 dark:border-white/10 rounded-lg p-4 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50 transition-all cursor-pointer group">
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-ai-primary transition-colors">{g.companyName}</h4>
-                          <span className={`px-2 py-1 rounded text-[10px] font-mono font-bold uppercase ${g.gameEnded ? 'bg-gray-200 text-gray-500' : g.gameStarted ? 'bg-green-100 text-green-600 dark:bg-ai-success/10 dark:text-ai-success' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400'}`}>
-                            {g.gameEnded ? 'Ended' : g.gameStarted ? 'Playing' : 'Waiting'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-[10px] font-mono font-bold uppercase ${g.gameEnded ? 'bg-gray-200 text-gray-500' : g.gameStarted ? 'bg-green-100 text-green-600 dark:bg-ai-success/10 dark:text-ai-success' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400'}`}>
+                              {g.gameEnded ? 'Ended' : g.gameStarted ? 'Playing' : 'Waiting'}
+                            </span>
+                            {currentUser.role === 'ADMIN' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteGame(generateGameId(g.companyName));
+                                }}
+                                className="p-1.5 rounded bg-red-100 hover:bg-red-500 text-red-500 hover:text-white dark:bg-red-500/10 dark:hover:bg-red-500 dark:text-red-400 dark:hover:text-white transition-all"
+                                title="게임 삭제 (관리자 전용)"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-xs text-gray-500 mb-3 font-mono">
                           {joinedTeams}/{g.teamCount} Teams • {activeCount} Players

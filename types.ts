@@ -64,7 +64,7 @@ export interface Member {
 export interface AccessLog {
   id: string;
   timestamp: string;
-  type: 'LOGIN' | 'LOGOUT' | 'CREATE_GAME' | 'REGISTER_MEMBER' | 'MEMBER_ACTION';
+  type: 'LOGIN' | 'LOGOUT' | 'CREATE_GAME' | 'DELETE_GAME' | 'REGISTER_MEMBER' | 'MEMBER_ACTION';
   userId: string; // 'ADMIN' or Member ID
   userName: string;
   details: string;
