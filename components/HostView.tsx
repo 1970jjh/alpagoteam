@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { GameState, Team } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
-import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices } from 'lucide-react';
+import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices, RotateCcw } from 'lucide-react';
 import { createFullDeck, getScoringGroups, restoreBoardArray } from '../utils';
 
 interface HostViewProps {
@@ -24,16 +24,65 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
   const sortedTeams = [...activeTeams].sort((a, b) => b.score - a.score);
   
   // Sidebar Tab State
-  const [activeTab, setActiveTab] = useState<'CONTROLS' | 'RANKING'>('CONTROLS');
-  
+  const [activeTab, setActiveTab] = useState<'CONTROLS' | 'RANKING' | 'RANDOM_BOARD'>('CONTROLS');
+
   // Local state for the selected number value { value, index }
   const [pendingSelection, setPendingSelection] = useState<{val: number|string, idx: number} | null>(null);
-  
+
   // State for Team Detail View Modal
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
 
+  // Random Number Board State
+  const [revealedCovers, setRevealedCovers] = useState<Set<string>>(new Set());
+  const [boardKey, setBoardKey] = useState(0);
+
   // Generate the full deck structure (Flat array of 40 items)
   const FULL_DECK = useMemo(() => createFullDeck(), []);
+
+  // Generate shuffled numbers for the random board (1-10, 11-19, 11-19, 20-30, ★)
+  const shuffledNumbers = useMemo(() => {
+    const numbers: (number | string)[] = [];
+    for (let i = 1; i <= 10; i++) numbers.push(i);
+    for (let i = 11; i <= 19; i++) numbers.push(i);
+    for (let i = 11; i <= 19; i++) numbers.push(i);
+    for (let i = 20; i <= 30; i++) numbers.push(i);
+    numbers.push('★');
+    for (let i = numbers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+    }
+    return numbers;
+  }, [boardKey]);
+
+  // Grid labels (A1-H5)
+  const gridLabels = useMemo(() => {
+    const labels: string[] = [];
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    for (const row of rows) {
+      for (let col = 1; col <= 5; col++) {
+        labels.push(`${row}${col}`);
+      }
+    }
+    return labels;
+  }, []);
+
+  // Random board handlers
+  const handleRandomReveal = useCallback(() => {
+    const unrevealed = gridLabels.filter(label => !revealedCovers.has(label));
+    if (unrevealed.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * unrevealed.length);
+    setRevealedCovers(prev => new Set([...prev, unrevealed[randomIndex]]));
+  }, [gridLabels, revealedCovers]);
+
+  const handleCoverClick = useCallback((label: string) => {
+    if (revealedCovers.has(label)) return;
+    setRevealedCovers(prev => new Set([...prev, label]));
+  }, [revealedCovers]);
+
+  const handleResetBoard = useCallback(() => {
+    setRevealedCovers(new Set());
+    setBoardKey(prev => prev + 1);
+  }, []);
 
   const handleSubmitNumber = () => {
     if (pendingSelection !== null) {
@@ -129,17 +178,23 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
         {/* Left Sidebar (Tabbed) */}
         <div className="lg:col-span-3 flex flex-col gap-2 min-h-0">
           <div className="flex p-1 bg-gray-200 dark:bg-white/5 rounded-lg border border-gray-300 dark:border-white/10 shrink-0">
-            <button 
+            <button
               onClick={() => setActiveTab('CONTROLS')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded transition-all ${activeTab === 'CONTROLS' ? 'bg-cyan-600 text-white dark:bg-ai-primary dark:text-black' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'}`}
+              className={`flex-1 flex items-center justify-center gap-1 py-2 text-xs font-bold rounded transition-all ${activeTab === 'CONTROLS' ? 'bg-cyan-600 text-white dark:bg-ai-primary dark:text-black' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'}`}
             >
-              <Gamepad2 className="w-4 h-4" /> 🎮 컨트롤
+              <Gamepad2 className="w-3 h-3" /> 컨트롤
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('RANKING')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold rounded transition-all ${activeTab === 'RANKING' ? 'bg-purple-600 text-white dark:bg-ai-secondary dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'}`}
+              className={`flex-1 flex items-center justify-center gap-1 py-2 text-xs font-bold rounded transition-all ${activeTab === 'RANKING' ? 'bg-purple-600 text-white dark:bg-ai-secondary dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'}`}
             >
-              <ListOrdered className="w-4 h-4" /> 🏆 순위
+              <ListOrdered className="w-3 h-3" /> 순위
+            </button>
+            <button
+              onClick={() => setActiveTab('RANDOM_BOARD')}
+              className={`flex-1 flex items-center justify-center gap-1 py-2 text-xs font-bold rounded transition-all ${activeTab === 'RANDOM_BOARD' ? 'bg-pink-600 text-white dark:bg-ai-accent dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white'}`}
+            >
+              <Dices className="w-3 h-3" /> 🎲숫자판
             </button>
           </div>
 
@@ -264,7 +319,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                   </h3>
                   <span className="text-xs text-gray-500 dark:text-ai-dim">총 {activeTeams.length}팀</span>
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
                   {sortedTeams.map((team, idx) => (
                     <div key={team.teamNumber} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded border border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
@@ -280,6 +335,87 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                       <span className="font-mono font-bold text-cyan-600 dark:text-ai-primary text-lg">{team.score}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'RANDOM_BOARD' && (
+              <div className="flex-1 flex flex-col h-full overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3 shrink-0">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Dices className="w-4 h-4 text-pink-600 dark:text-ai-accent" /> 🎲 랜덤 숫자 출제
+                  </h3>
+                  <span className="text-xs text-pink-600 dark:text-ai-accent font-bold">{revealedCovers.size}/40</span>
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-2 mb-3 shrink-0">
+                  <button
+                    onClick={handleRandomReveal}
+                    disabled={revealedCovers.size >= 40}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs font-bold rounded-lg shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Dices className="w-4 h-4" /> 랜덤 출제
+                  </button>
+                  <button
+                    onClick={handleResetBoard}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-white/10 dark:hover:bg-white/20 text-gray-700 dark:text-white text-xs font-bold rounded-lg transition-all"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Board Grid */}
+                <div className="flex-1 overflow-auto">
+                  <div className="grid grid-cols-5 gap-1 p-2 bg-slate-900 dark:bg-black/60 rounded-xl">
+                    {gridLabels.map((label, index) => {
+                      const isRevealed = revealedCovers.has(label);
+                      const number = shuffledNumbers[index];
+                      const isJoker = number === '★';
+
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => handleCoverClick(label)}
+                          disabled={isRevealed}
+                          className={`
+                            aspect-square rounded-lg font-bold text-xs transition-all duration-300 transform
+                            ${isRevealed
+                              ? isJoker
+                                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 border border-yellow-300'
+                                : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-md border border-green-300'
+                              : 'bg-gradient-to-br from-purple-600 via-pink-500 to-purple-700 hover:from-purple-500 hover:via-pink-400 hover:to-purple-600 text-white cursor-pointer hover:scale-105 active:scale-95 border border-purple-400/50'
+                            }
+                          `}
+                        >
+                          {isRevealed ? (
+                            <span className={`text-lg font-black ${isJoker ? 'animate-pulse' : ''}`}>
+                              {number}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold opacity-80">{label}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex justify-center gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-gradient-to-br from-purple-600 to-pink-500"></span>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">미공개</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-gradient-to-br from-green-400 to-emerald-600"></span>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">공개</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-gradient-to-br from-yellow-400 to-orange-500"></span>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">조커</span>
+                  </div>
                 </div>
               </div>
             )}
