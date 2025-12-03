@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Member, AccessLog } from '../types';
 import { Panel, Button, Input } from './UI';
-import { UserPlus, Shield, Clock, FileText, Search, UserCheck, Trash2, CalendarPlus, RefreshCcw, X } from 'lucide-react';
+import { UserPlus, Shield, Clock, FileText, Search, UserCheck, Trash2, CalendarPlus, RefreshCcw, X, Dices, RotateCcw } from 'lucide-react';
 
 interface AdminDashboardProps {
   members: Member[];
@@ -21,12 +21,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const safeMembers = Array.isArray(members) ? members : [];
   const safeLogs = Array.isArray(logs) ? logs : [];
 
-  const [activeTab, setActiveTab] = useState<'MEMBERS' | 'LOGS'>('MEMBERS');
-  
+  const [activeTab, setActiveTab] = useState<'MEMBERS' | 'LOGS' | 'RANDOM_BOARD'>('MEMBERS');
+
   // Form State
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
+
+  // Random Number Board State
+  const [revealedCovers, setRevealedCovers] = useState<Set<string>>(new Set());
+  const [boardKey, setBoardKey] = useState(0); // Used to reset the board
+
+  // Generate shuffled numbers for the board (1-10, 11-19, 11-19, 20-30, ★)
+  const shuffledNumbers = useMemo(() => {
+    const numbers: (number | string)[] = [];
+    // 1-10 (10 numbers)
+    for (let i = 1; i <= 10; i++) numbers.push(i);
+    // 11-19 (9 numbers) - first set
+    for (let i = 11; i <= 19; i++) numbers.push(i);
+    // 11-19 (9 numbers) - second set
+    for (let i = 11; i <= 19; i++) numbers.push(i);
+    // 20-30 (11 numbers)
+    for (let i = 20; i <= 30; i++) numbers.push(i);
+    // Joker (★)
+    numbers.push('★');
+
+    // Shuffle using Fisher-Yates algorithm
+    for (let i = numbers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+    }
+    return numbers;
+  }, [boardKey]);
+
+  // Grid labels (A1-H5)
+  const gridLabels = useMemo(() => {
+    const labels: string[] = [];
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    for (const row of rows) {
+      for (let col = 1; col <= 5; col++) {
+        labels.push(`${row}${col}`);
+      }
+    }
+    return labels;
+  }, []);
+
+  // Reveal a random cover
+  const handleRandomReveal = useCallback(() => {
+    const unrevealed = gridLabels.filter(label => !revealedCovers.has(label));
+    if (unrevealed.length === 0) return;
+
+    const randomIndex = Math.floor(Math.random() * unrevealed.length);
+    const selectedLabel = unrevealed[randomIndex];
+
+    setRevealedCovers(prev => new Set([...prev, selectedLabel]));
+  }, [gridLabels, revealedCovers]);
+
+  // Reveal specific cover by click
+  const handleCoverClick = useCallback((label: string) => {
+    if (revealedCovers.has(label)) return;
+    setRevealedCovers(prev => new Set([...prev, label]));
+  }, [revealedCovers]);
+
+  // Reset the board
+  const handleResetBoard = useCallback(() => {
+    setRevealedCovers(new Set());
+    setBoardKey(prev => prev + 1);
+  }, []);
 
   const handleRegister = () => {
     if (!newName || !newEmail || !newPhone) {
@@ -76,11 +137,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <UserCheck className="w-4 h-4" /> 회원 관리
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('LOGS')}
             className={`px-6 py-3 rounded-t-lg font-bold text-sm transition-all flex items-center gap-2 border-b-2 ${activeTab === 'LOGS' ? 'bg-purple-50 text-purple-700 border-purple-500 dark:bg-ai-secondary/10 dark:text-ai-secondary dark:border-ai-secondary' : 'text-gray-500 border-transparent hover:text-gray-900 dark:text-gray-500 dark:hover:text-white'}`}
           >
             <FileText className="w-4 h-4" /> 접속/활동 로그
+          </button>
+          <button
+            onClick={() => setActiveTab('RANDOM_BOARD')}
+            className={`px-6 py-3 rounded-t-lg font-bold text-sm transition-all flex items-center gap-2 border-b-2 ${activeTab === 'RANDOM_BOARD' ? 'bg-pink-50 text-pink-700 border-pink-500 dark:bg-ai-accent/10 dark:text-ai-accent dark:border-ai-accent' : 'text-gray-500 border-transparent hover:text-gray-900 dark:text-gray-500 dark:hover:text-white'}`}
+          >
+            <Dices className="w-4 h-4" /> 🎲 랜덤 숫자 출제
           </button>
         </div>
 
@@ -228,9 +295,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="p-3 text-gray-500 text-xs">{formatDate(log.timestamp)}</td>
                           <td className="p-3">
                             <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                              log.type === 'LOGIN' ? 'bg-cyan-100 text-cyan-700 dark:bg-ai-primary/10 dark:text-ai-primary' : 
+                              log.type === 'LOGIN' ? 'bg-cyan-100 text-cyan-700 dark:bg-ai-primary/10 dark:text-ai-primary' :
                               log.type === 'LOGOUT' ? 'bg-gray-200 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400' :
-                              log.type === 'CREATE_GAME' ? 'bg-green-100 text-green-700 dark:bg-ai-success/10 dark:text-ai-success' : 
+                              log.type === 'CREATE_GAME' ? 'bg-green-100 text-green-700 dark:bg-ai-success/10 dark:text-ai-success' :
                               'text-gray-500 dark:text-gray-400'
                             }`}>
                               {log.type}
@@ -260,6 +327,101 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </tbody>
                   </table>
                </div>
+            </div>
+          )}
+
+          {/* RANDOM NUMBER BOARD TAB */}
+          {activeTab === 'RANDOM_BOARD' && (
+            <div className="h-full flex flex-col p-6 overflow-hidden">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6 shrink-0">
+                <div className="flex items-center gap-3">
+                  <Dices className="w-6 h-6 text-pink-600 dark:text-ai-accent" />
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">🎲 랜덤 숫자 출제</h3>
+                    <p className="text-xs text-gray-500 dark:text-ai-dim">덮개를 클릭하거나 랜덤 출제 버튼을 눌러 숫자를 공개하세요</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRandomReveal}
+                    disabled={revealedCovers.size >= 40}
+                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-pink-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Dices className="w-5 h-5" /> 랜덤 숫자 출제
+                  </button>
+                  <button
+                    onClick={handleResetBoard}
+                    className="flex items-center gap-2 px-4 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-white/10 dark:hover:bg-white/20 text-gray-700 dark:text-white font-bold rounded-xl transition-all"
+                  >
+                    <RotateCcw className="w-5 h-5" /> 초기화
+                  </button>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="flex gap-4 mb-4 shrink-0">
+                <div className="px-4 py-2 bg-pink-50 dark:bg-ai-accent/10 rounded-lg border border-pink-200 dark:border-ai-accent/30">
+                  <span className="text-xs text-gray-500 dark:text-ai-dim">공개된 숫자</span>
+                  <span className="text-lg font-bold text-pink-600 dark:text-ai-accent ml-2">{revealedCovers.size}/40</span>
+                </div>
+                <div className="px-4 py-2 bg-purple-50 dark:bg-ai-secondary/10 rounded-lg border border-purple-200 dark:border-ai-secondary/30">
+                  <span className="text-xs text-gray-500 dark:text-ai-dim">남은 덮개</span>
+                  <span className="text-lg font-bold text-purple-600 dark:text-ai-secondary ml-2">{40 - revealedCovers.size}</span>
+                </div>
+              </div>
+
+              {/* Board Grid */}
+              <div className="flex-1 flex items-center justify-center overflow-auto">
+                <div className="grid grid-cols-5 gap-2 p-4 bg-slate-900 dark:bg-black/60 rounded-2xl border border-gray-300 dark:border-white/10 shadow-xl">
+                  {gridLabels.map((label, index) => {
+                    const isRevealed = revealedCovers.has(label);
+                    const number = shuffledNumbers[index];
+                    const isJoker = number === '★';
+
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => handleCoverClick(label)}
+                        disabled={isRevealed}
+                        className={`
+                          relative w-16 h-16 md:w-20 md:h-20 rounded-xl font-bold text-lg transition-all duration-300 transform
+                          ${isRevealed
+                            ? isJoker
+                              ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 scale-100 border-2 border-yellow-300'
+                              : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-lg shadow-green-500/30 scale-100 border-2 border-green-300'
+                            : 'bg-gradient-to-br from-purple-600 via-pink-500 to-purple-700 hover:from-purple-500 hover:via-pink-400 hover:to-purple-600 text-white cursor-pointer hover:scale-105 hover:shadow-xl hover:shadow-purple-500/40 active:scale-95 border-2 border-purple-400/50'
+                          }
+                        `}
+                      >
+                        {isRevealed ? (
+                          <span className={`text-2xl md:text-3xl font-black ${isJoker ? 'animate-pulse' : ''}`}>
+                            {number}
+                          </span>
+                        ) : (
+                          <span className="text-sm md:text-base font-bold opacity-90">{label}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-gray-200 dark:border-white/10 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded bg-gradient-to-br from-purple-600 to-pink-500"></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">미공개</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded bg-gradient-to-br from-green-400 to-emerald-600"></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">공개</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded bg-gradient-to-br from-yellow-400 to-orange-500"></span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">조커</span>
+                </div>
+              </div>
             </div>
           )}
 
