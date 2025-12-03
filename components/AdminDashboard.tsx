@@ -390,7 +390,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             ? isJoker
                               ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 scale-100 border-2 border-yellow-300'
                               : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-lg shadow-green-500/30 scale-100 border-2 border-green-300'
-                            : 'bg-gradient-to-br from-purple-600 via-pink-500 to-purple-700 hover:from-purple-500 hover:via-pink-400 hover:to-purple-600 text-white cursor-pointer hover:scale-105 hover:shadow-xl hover:shadow-purple-500/40 active:scale-95 border-2 border-purple-400/50'
+                            : 'backdrop-blur-md bg-gradient-to-br from-amber-200/60 via-yellow-300/50 to-amber-400/60 hover:from-amber-300/70 hover:via-yellow-400/60 hover:to-amber-500/70 text-amber-900 cursor-pointer hover:scale-105 hover:shadow-xl hover:shadow-amber-300/40 active:scale-95 border-2 border-amber-300/80'
                           }
                         `}
                       >
@@ -410,7 +410,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Legend */}
               <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-gray-200 dark:border-white/10 shrink-0">
                 <div className="flex items-center gap-2">
-                  <span className="w-4 h-4 rounded bg-gradient-to-br from-purple-600 to-pink-500"></span>
+                  <span className="w-4 h-4 rounded bg-gradient-to-br from-amber-200 via-yellow-300 to-amber-400 border border-amber-300/50"></span>
                   <span className="text-sm text-gray-600 dark:text-gray-400">미공개</span>
                 </div>
                 <div className="flex items-center gap-2">
