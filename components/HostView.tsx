@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { GameState, Team } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
-import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices, RotateCcw } from 'lucide-react';
+import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices, RotateCcw, AlertTriangle } from 'lucide-react';
 import { createFullDeck, getScoringGroups, restoreBoardArray } from '../utils';
 
 interface HostViewProps {
@@ -35,6 +35,55 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
   // Random Number Board State
   const [revealedCovers, setRevealedCovers] = useState<Set<string>>(new Set());
   const [boardKey, setBoardKey] = useState(0);
+
+  // Timer state for 1-minute placement timeout alert
+  const [placementStartTime, setPlacementStartTime] = useState<number | null>(null);
+  const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
+  const prevWaitingRef = useRef(game.waitingForPlacements);
+
+  // Calculate unplaced teams
+  const unplacedTeams = useMemo(() => {
+    if (!game.waitingForPlacements) return [];
+    return activeTeams.filter(t => !t.hasPlacedCurrentNumber);
+  }, [activeTeams, game.waitingForPlacements]);
+
+  const allTeamsPlaced = useMemo(() => {
+    return activeTeams.length > 0 && unplacedTeams.length === 0;
+  }, [activeTeams, unplacedTeams]);
+
+  // Effect to track placement start time and 1-minute timeout
+  useEffect(() => {
+    // When waitingForPlacements changes from false to true, start timer
+    if (game.waitingForPlacements && !prevWaitingRef.current) {
+      setPlacementStartTime(Date.now());
+      setShowTimeoutAlert(false);
+    }
+    // When waitingForPlacements changes from true to false, reset timer
+    if (!game.waitingForPlacements && prevWaitingRef.current) {
+      setPlacementStartTime(null);
+      setShowTimeoutAlert(false);
+    }
+    prevWaitingRef.current = game.waitingForPlacements;
+  }, [game.waitingForPlacements]);
+
+  // Effect for 1-minute timeout check
+  useEffect(() => {
+    if (!placementStartTime || !game.waitingForPlacements) return;
+
+    const checkTimeout = () => {
+      const elapsed = Date.now() - placementStartTime;
+      if (elapsed >= 60000 && unplacedTeams.length > 0) {
+        setShowTimeoutAlert(true);
+      }
+    };
+
+    // Check immediately
+    checkTimeout();
+
+    // Check every second
+    const intervalId = setInterval(checkTimeout, 1000);
+    return () => clearInterval(intervalId);
+  }, [placementStartTime, game.waitingForPlacements, unplacedTeams]);
 
   // Generate the full deck structure (Flat array of 40 items)
   const FULL_DECK = useMemo(() => createFullDeck(), []);
@@ -230,7 +279,23 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                       <div className="text-left">
                           <span className="text-xs font-mono text-gray-600 dark:text-ai-dim uppercase tracking-wide block font-bold">현재 출제된 숫자</span>
                           {game.waitingForPlacements ? (
-                            <span className="text-red-500 dark:text-ai-accent text-xs animate-pulse font-semibold">배치 대기 중...</span>
+                            allTeamsPlaced ? (
+                              <span className="text-green-600 dark:text-ai-success text-xs font-semibold flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> 다음 출제 준비 완료
+                              </span>
+                            ) : (
+                              <div className="flex flex-col">
+                                <span className="text-amber-600 dark:text-amber-400 text-xs animate-pulse font-semibold flex items-center gap-1">
+                                  배치 대기 중... ({unplacedTeams.length}팀 남음)
+                                </span>
+                                {showTimeoutAlert && unplacedTeams.length > 0 && (
+                                  <span className="text-red-500 dark:text-red-400 text-[10px] font-bold flex items-center gap-1 mt-0.5">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    {unplacedTeams.map(t => `${t.teamNumber}조`).join(', ')}
+                                  </span>
+                                )}
+                              </div>
+                            )
                           ) : (
                             <span className="text-green-600 dark:text-ai-success text-xs font-semibold">출제 가능</span>
                           )}
@@ -366,6 +431,33 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                   </button>
                 </div>
 
+                {/* Team Placement Status */}
+                {game.gameStarted && !game.gameEnded && game.waitingForPlacements && (
+                  <div className={`mb-2 p-2 rounded-lg border text-xs font-bold shrink-0 ${
+                    allTeamsPlaced
+                      ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400'
+                      : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400'
+                  }`}>
+                    {allTeamsPlaced ? (
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> 다음 출제 준비 완료
+                      </span>
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="flex items-center gap-1">
+                          배치 대기 중... ({unplacedTeams.length}팀 남음)
+                        </span>
+                        {showTimeoutAlert && unplacedTeams.length > 0 && (
+                          <span className="text-red-500 dark:text-red-400 text-[10px] flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            {unplacedTeams.map(t => `${t.teamNumber}조`).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Board Grid */}
                 <div className="flex-1 overflow-auto">
                   <div className="grid grid-cols-5 gap-1 p-2 bg-slate-900 dark:bg-black/60 rounded-xl">
@@ -385,7 +477,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                               ? isJoker
                                 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 border border-yellow-300'
                                 : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-md border border-green-300'
-                              : 'bg-gradient-to-br from-purple-600 via-pink-500 to-purple-700 hover:from-purple-500 hover:via-pink-400 hover:to-purple-600 text-white cursor-pointer hover:scale-105 active:scale-95 border border-purple-400/50'
+                              : 'backdrop-blur-md bg-gradient-to-br from-amber-200/60 via-yellow-300/50 to-amber-400/60 hover:from-amber-300/70 hover:via-yellow-400/60 hover:to-amber-500/70 text-amber-900 cursor-pointer hover:scale-105 active:scale-95 border border-amber-300/80 shadow-lg shadow-amber-200/30'
                             }
                           `}
                         >
@@ -405,7 +497,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                 {/* Legend */}
                 <div className="flex justify-center gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
                   <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-gradient-to-br from-purple-600 to-pink-500"></span>
+                    <span className="w-3 h-3 rounded bg-gradient-to-br from-amber-200 via-yellow-300 to-amber-400 border border-amber-300/50"></span>
                     <span className="text-[10px] text-gray-500 dark:text-gray-400">미공개</span>
                   </div>
                   <div className="flex items-center gap-1">
