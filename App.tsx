@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GameState, AppContextState, Team, Player, UserSession, Member, AccessLog } from './types';
+import { GameState, AppContextState, Team, Player, UserSession, Member, AccessLog, GoogleCredentialResponse, GoogleUserPayload } from './types';
 import { createFullDeck, calculatePlayerScore, checkGameEnd, generateGameId, calculateFinalRanking, generatePlayerId, restoreBoardArray } from './utils';
 import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
@@ -84,6 +84,34 @@ const STORAGE_KEYS = {
   MEMBERS: 'collective_intelligence_members',
   LOGS: 'collective_intelligence_logs',
   SESSION: 'collective_intelligence_session',
+};
+
+// --- GOOGLE OAUTH CONFIG ---
+// To get your Google OAuth Client ID:
+// 1. Go to https://console.cloud.google.com/
+// 2. Select your Firebase project (collective-intelligence-jjh)
+// 3. Go to "APIs & Services" > "Credentials"
+// 4. Create "OAuth 2.0 Client ID" of type "Web application"
+// 5. Add authorized JavaScript origins (your app domain)
+// 6. Copy the Client ID below
+const GOOGLE_CLIENT_ID = '940729633848-8bec843c599a5467562acd.apps.googleusercontent.com';
+
+// --- HELPER: Parse JWT Token from Google ---
+const parseJwt = (token: string): GoogleUserPayload | null => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to parse JWT:', e);
+    return null;
+  }
 };
 
 // --- HELPER: Check if localStorage is available (lazy evaluation) ---
@@ -198,9 +226,16 @@ const App: React.FC = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // --- GOOGLE SIMULATION STATE ---
+  // --- GOOGLE OAUTH STATE ---
   const [showGoogleSimulation, setShowGoogleSimulation] = useState(false);
   const [simulatedCandidate, setSimulatedCandidate] = useState<Member | null>(null);
+  const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState(false);
+
+  // Ref to store the latest members for the Google callback
+  const membersRef = useRef<Member[]>([]);
+  membersRef.current = safeMembers;
 
   // Game Session State - Load from localStorage if available
   const [session, setSession] = useState<AppContextState & { gameId: string | null }>(() => {
@@ -246,6 +281,132 @@ const App: React.FC = () => {
         document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+
+  // --- GOOGLE SIGN-IN INITIALIZATION ---
+  useEffect(() => {
+    // Wait for Google Identity Services script to load
+    const initGoogleSignIn = () => {
+      if (!window.google?.accounts?.id) {
+        console.log('Google Sign-In not yet loaded, retrying...');
+        setTimeout(initGoogleSignIn, 500);
+        return;
+      }
+
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        setIsGoogleLoaded(true);
+        console.log('Google Sign-In initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize Google Sign-In:', error);
+        setGoogleError('Google 로그인 초기화에 실패했습니다.');
+      }
+    };
+
+    initGoogleSignIn();
+  }, []);
+
+  // --- GOOGLE CREDENTIAL CALLBACK HANDLER ---
+  const handleGoogleCredentialResponse = (response: GoogleCredentialResponse) => {
+    setIsGoogleLoggingIn(false);
+
+    if (!response.credential) {
+      setGoogleError('Google 인증 정보를 받지 못했습니다.');
+      return;
+    }
+
+    // Parse the JWT token to get user info
+    const payload = parseJwt(response.credential);
+    if (!payload) {
+      setGoogleError('Google 인증 정보를 파싱할 수 없습니다.');
+      return;
+    }
+
+    const googleEmail = payload.email.toLowerCase();
+
+    // Check if this Google email is registered in our system
+    const registeredMember = membersRef.current.find(
+      m => m.email.toLowerCase() === googleEmail
+    );
+
+    if (!registeredMember) {
+      alert('등록되지 않은 이메일입니다.\n\n관리자에게 회원 등록을 요청해주세요.\n\nGoogle 계정 이메일: ' + payload.email);
+      setShowLoginModal(true);
+      return;
+    }
+
+    // Check if the pre-entered email matches (if user entered one)
+    if (loginEmail.trim() && loginEmail.trim().toLowerCase() !== googleEmail) {
+      alert('입력하신 이메일과 Google 계정 이메일이 일치하지 않습니다.\n\n입력한 이메일: ' + loginEmail + '\nGoogle 계정: ' + payload.email);
+      setShowLoginModal(true);
+      return;
+    }
+
+    // Email matches a registered member - proceed with login
+    console.log('Google login successful, verified email:', googleEmail);
+    completeMemberLogin(googleEmail);
+    setShowLoginModal(false);
+    setLoginEmail('');
+  };
+
+  // --- TRIGGER GOOGLE SIGN-IN POPUP ---
+  const triggerGoogleSignIn = () => {
+    if (!isGoogleLoaded || !window.google?.accounts?.id) {
+      alert('Google 로그인이 아직 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    setGoogleError(null);
+    setIsGoogleLoggingIn(true);
+
+    // Prompt Google Sign-In One Tap or popup
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed()) {
+        const reason = notification.getNotDisplayedReason();
+        console.log('Google Sign-In not displayed:', reason);
+
+        // If One Tap is blocked, try rendering a button instead
+        if (reason === 'opt_out_or_no_session' || reason === 'suppressed_by_user') {
+          setGoogleError('Google One Tap이 차단되었습니다. 팝업 차단을 해제해주세요.');
+        } else if (reason === 'browser_not_supported') {
+          setGoogleError('이 브라우저에서는 Google 로그인을 지원하지 않습니다.');
+        } else {
+          // Fallback to simulated mode for testing
+          handleFallbackLogin();
+        }
+        setIsGoogleLoggingIn(false);
+      } else if (notification.isSkippedMoment()) {
+        console.log('Google Sign-In skipped:', notification.getSkippedReason());
+        setIsGoogleLoggingIn(false);
+      } else if (notification.isDismissedMoment()) {
+        console.log('Google Sign-In dismissed:', notification.getDismissedReason());
+        setIsGoogleLoggingIn(false);
+      }
+    });
+  };
+
+  // --- FALLBACK LOGIN (for environments where Google One Tap doesn't work) ---
+  const handleFallbackLogin = () => {
+    if (!loginEmail.trim()) {
+      alert('구글 이메일 주소를 입력해주세요.');
+      return;
+    }
+
+    // Check if email is registered
+    const checkMember = safeMembers.find(m => m.email.toLowerCase() === loginEmail.trim().toLowerCase());
+    if (!checkMember) {
+      alert('등록되지 않은 이메일입니다. 관리자에게 문의하여 회원 등록을 진행해주세요.');
+      return;
+    }
+
+    // Show simulation modal as fallback
+    setSimulatedCandidate(checkMember);
+    setShowGoogleSimulation(true);
+  };
 
   // --- SESSION PERSISTENCE ---
   // Save session to localStorage when it changes
@@ -525,9 +686,9 @@ const App: React.FC = () => {
   const handleLogin = () => {
     if (loginMode === 'ADMIN') {
       if (loginPassword === '6749467') {
-        const adminUser: UserSession = { 
-            role: 'ADMIN', 
-            id: 'ADMIN', 
+        const adminUser: UserSession = {
+            role: 'ADMIN',
+            id: 'ADMIN',
             name: '관리자',
             loginAt: new Date().toISOString()
         };
@@ -539,24 +700,18 @@ const App: React.FC = () => {
         alert('비밀번호가 올바르지 않습니다.');
       }
     } else {
-      // Member Login Logic
-      if (!loginEmail.trim()) {
-        alert("구글 이메일 주소를 입력해주세요.");
-        return;
+      // Member Login Logic - Use Real Google OAuth
+      // Pre-check email if entered (optional)
+      if (loginEmail.trim()) {
+        const checkMember = safeMembers.find(m => m.email.toLowerCase() === loginEmail.trim().toLowerCase());
+        if (!checkMember) {
+          alert('등록되지 않은 이메일입니다. 관리자에게 문의하여 회원 등록을 진행해주세요.');
+          return;
+        }
       }
 
-      // 1. PRE-CHECK: Is this email registered in our system?
-      const checkMember = safeMembers.find(m => m.email.toLowerCase() === loginEmail.trim().toLowerCase());
-      if (!checkMember) {
-         alert('등록되지 않은 이메일입니다. 관리자에게 문의하여 회원 등록을 진행해주세요.');
-         return;
-      }
-      
-      // 2. SIMULATION: Launch Fake Google Modal
-      // Because strict Google Auth fails in the BUILD iframe environment (400 origin mismatch),
-      // we simulate the experience to allow testing the logic.
-      setSimulatedCandidate(checkMember);
-      setShowGoogleSimulation(true);
+      // Trigger Google Sign-In
+      triggerGoogleSignIn();
     }
   };
 
@@ -1112,7 +1267,7 @@ const App: React.FC = () => {
         {showLoginModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
                 <Panel className="w-full max-w-sm relative bg-white dark:bg-[#0a0a0f]">
-                    <button onClick={() => setShowLoginModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-slate-900 dark:hover:text-white">✕</button>
+                    <button onClick={() => { setShowLoginModal(false); setGoogleError(null); setIsGoogleLoggingIn(false); }} className="absolute top-4 right-4 text-gray-500 hover:text-slate-900 dark:hover:text-white">✕</button>
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
                         <LogIn className="w-5 h-5 text-cyan-600 dark:text-ai-primary" /> 시스템 로그인
                     </h2>
@@ -1136,28 +1291,65 @@ const App: React.FC = () => {
                         {loginMode === 'MEMBER' ? (
                             <div>
                                 <label className="block text-xs font-mono text-gray-500 mb-1">Google Email</label>
-                                <Input 
-                                    value={loginEmail} 
-                                    onChange={e => setLoginEmail(e.target.value)} 
-                                    placeholder="example@gmail.com" 
+                                <Input
+                                    value={loginEmail}
+                                    onChange={e => setLoginEmail(e.target.value)}
+                                    placeholder="example@gmail.com"
                                     type="email"
                                     className="bg-gray-50 dark:bg-black/30 text-slate-900 dark:text-white"
                                 />
                                 <p className="text-[10px] text-gray-500 mt-2">* 등록된 이메일과 일치하는 구글 계정으로만 접속 가능합니다.</p>
-                                
-                                <button 
+
+                                {googleError && (
+                                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-600 dark:text-red-400">
+                                    {googleError}
+                                  </div>
+                                )}
+
+                                <button
                                   onClick={handleLogin}
-                                  className="w-full mt-4 py-2.5 bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 font-roboto font-medium rounded transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.99]"
+                                  disabled={isGoogleLoggingIn}
+                                  className="w-full mt-4 py-2.5 bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 font-roboto font-medium rounded transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  {/* Google Logo SVG */}
-                                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                                  </svg>
-                                  <span className="text-sm">Google 계정으로 로그인</span>
+                                  {isGoogleLoggingIn ? (
+                                    <>
+                                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                      </svg>
+                                      <span className="text-sm">Google 로그인 중...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {/* Google Logo SVG */}
+                                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                                      </svg>
+                                      <span className="text-sm">Google 계정으로 로그인</span>
+                                    </>
+                                  )}
                                 </button>
+
+                                {!isGoogleLoaded && (
+                                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 animate-pulse">
+                                    Google 로그인을 준비하는 중...
+                                  </p>
+                                )}
+
+                                {/* Fallback option when Google Sign-In doesn't work */}
+                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+                                  <p className="text-[10px] text-gray-400 text-center mb-2">Google 로그인이 작동하지 않는 경우:</p>
+                                  <button
+                                    onClick={handleFallbackLogin}
+                                    disabled={!loginEmail.trim()}
+                                    className="w-full py-2 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 text-xs font-medium rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    이메일 인증으로 로그인
+                                  </button>
+                                </div>
                             </div>
                         ) : (
                             <div>
