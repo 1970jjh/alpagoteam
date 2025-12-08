@@ -328,13 +328,22 @@ const App: React.FC = () => {
 
     const googleEmail = payload.email.toLowerCase();
 
+    // Debug: Log current members for troubleshooting
+    console.log('=== Google Login Debug ===');
+    console.log('Google Email:', googleEmail);
+    console.log('Current members in ref:', membersRef.current);
+    console.log('Members count:', membersRef.current.length);
+    console.log('Member emails:', membersRef.current.map(m => m.email.toLowerCase()));
+
     // Check if this Google email is registered in our system
     const registeredMember = membersRef.current.find(
       m => m.email.toLowerCase() === googleEmail
     );
 
+    console.log('Found member:', registeredMember);
+
     if (!registeredMember) {
-      alert('등록되지 않은 이메일입니다.\n\n관리자에게 회원 등록을 요청해주세요.\n\nGoogle 계정 이메일: ' + payload.email);
+      alert('등록되지 않은 이메일입니다.\n\n관리자에게 회원 등록을 요청해주세요.\n\nGoogle 계정 이메일: ' + payload.email + '\n\n[디버그] 현재 등록된 회원 수: ' + membersRef.current.length);
       setShowLoginModal(true);
       return;
     }
