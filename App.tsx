@@ -94,7 +94,7 @@ const STORAGE_KEYS = {
 // 4. Create "OAuth 2.0 Client ID" of type "Web application"
 // 5. Add authorized JavaScript origins (your app domain)
 // 6. Copy the Client ID below
-const GOOGLE_CLIENT_ID = '940729633848-8bec843c599a5467562acd.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '940729633848-ofk2selsnda52g0nhg4h0pb8e4vec1li.apps.googleusercontent.com';
 
 // --- HELPER: Parse JWT Token from Google ---
 const parseJwt = (token: string): GoogleUserPayload | null => {
