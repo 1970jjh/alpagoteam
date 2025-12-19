@@ -14,6 +14,8 @@ export interface Team {
   placedBy: string | null;
 }
 
+export type GameMode = 'CONTROL' | 'RANDOM_BOARD' | null;
+
 export interface GameState {
   companyName: string;
   teamCount: number;
@@ -35,6 +37,16 @@ export interface GameState {
   }[];
   creatorId: string; // ID of the user who created the game
   createdAt: string;
+  // Game mode: CONTROL (open numbers) or RANDOM_BOARD (hidden numbers)
+  gameMode: GameMode;
+  // For RANDOM_BOARD mode: shuffled numbers array (A1-H5 = 40 cells)
+  randomBoardNumbers?: (number | string)[];
+  // For RANDOM_BOARD mode: which cells have been revealed
+  revealedCells?: string[];
+  // For RANDOM_BOARD mode: pending number to be submitted
+  pendingRandomNumber?: { value: number | string; cellLabel: string } | null;
+  // Version counter for conflict resolution
+  version?: number;
 }
 
 export type Role = 'HOST' | 'PLAYER' | 'NONE';

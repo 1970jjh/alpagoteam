@@ -1,17 +1,20 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { GameState, Team } from '../types';
+import { GameState, Team, GameMode } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
 import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, Gamepad2, ListOrdered, Dices, RotateCcw, AlertTriangle } from 'lucide-react';
 import { createFullDeck, getScoringGroups, restoreBoardArray } from '../utils';
 
 interface HostViewProps {
   game: GameState;
-  onStartGame: () => void;
+  onStartGame: (mode: GameMode) => void;
   onSelectNumber: (num: number | string, cardIndex: number) => void;
+  onSelectRandomCell: (cellLabel: string, value: number | string) => void;
+  onSubmitRandomNumber: () => void;
+  onRandomReveal: () => void;
 }
 
-export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectNumber }) => {
+export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectNumber, onSelectRandomCell, onSubmitRandomNumber, onRandomReveal }) => {
   // Ensure all arrays exist (Firebase may return objects instead of arrays)
   const gameTeams = Array.isArray(game.teams) ? game.teams : [];
   const safeUsedCardIndices = Array.isArray(game.usedCardIndices) ? game.usedCardIndices : [];
@@ -22,19 +25,25 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
   }));
   const activeTeams = safeTeams.filter(t => t.players.length > 0);
   const sortedTeams = [...activeTeams].sort((a, b) => b.score - a.score);
-  
-  // Sidebar Tab State
-  const [activeTab, setActiveTab] = useState<'CONTROLS' | 'RANKING' | 'RANDOM_BOARD'>('CONTROLS');
 
-  // Local state for the selected number value { value, index }
+  // Game mode and random board state from game
+  const safeRevealedCells = Array.isArray(game.revealedCells) ? game.revealedCells : [];
+  const safeRandomBoardNumbers = Array.isArray(game.randomBoardNumbers) ? game.randomBoardNumbers : [];
+
+  // Sidebar Tab State - default to CONTROLS for CONTROL mode, RANDOM_BOARD for RANDOM_BOARD mode
+  const [activeTab, setActiveTab] = useState<'CONTROLS' | 'RANKING' | 'RANDOM_BOARD'>(() => {
+    if (game.gameMode === 'RANDOM_BOARD') return 'RANDOM_BOARD';
+    return 'CONTROLS';
+  });
+
+  // Local state for the selected number value { value, index } - for CONTROL mode
   const [pendingSelection, setPendingSelection] = useState<{val: number|string, idx: number} | null>(null);
 
   // State for Team Detail View Modal
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
 
-  // Random Number Board State
-  const [revealedCovers, setRevealedCovers] = useState<Set<string>>(new Set());
-  const [boardKey, setBoardKey] = useState(0);
+  // Game mode selection before game start
+  const [selectedMode, setSelectedMode] = useState<GameMode>(null);
 
   // Timer state for 1-minute placement timeout alert
   const [placementStartTime, setPlacementStartTime] = useState<number | null>(null);
@@ -88,21 +97,6 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
   // Generate the full deck structure (Flat array of 40 items)
   const FULL_DECK = useMemo(() => createFullDeck(), []);
 
-  // Generate shuffled numbers for the random board (1-10, 11-19, 11-19, 20-30, ★)
-  const shuffledNumbers = useMemo(() => {
-    const numbers: (number | string)[] = [];
-    for (let i = 1; i <= 10; i++) numbers.push(i);
-    for (let i = 11; i <= 19; i++) numbers.push(i);
-    for (let i = 11; i <= 19; i++) numbers.push(i);
-    for (let i = 20; i <= 30; i++) numbers.push(i);
-    numbers.push('★');
-    for (let i = numbers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
-    }
-    return numbers;
-  }, [boardKey]);
-
   // Grid labels (A1-H5)
   const gridLabels = useMemo(() => {
     const labels: string[] = [];
@@ -113,24 +107,6 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
       }
     }
     return labels;
-  }, []);
-
-  // Random board handlers
-  const handleRandomReveal = useCallback(() => {
-    const unrevealed = gridLabels.filter(label => !revealedCovers.has(label));
-    if (unrevealed.length === 0) return;
-    const randomIndex = Math.floor(Math.random() * unrevealed.length);
-    setRevealedCovers(prev => new Set([...prev, unrevealed[randomIndex]]));
-  }, [gridLabels, revealedCovers]);
-
-  const handleCoverClick = useCallback((label: string) => {
-    if (revealedCovers.has(label)) return;
-    setRevealedCovers(prev => new Set([...prev, label]));
-  }, [revealedCovers]);
-
-  const handleResetBoard = useCallback(() => {
-    setRevealedCovers(new Set());
-    setBoardKey(prev => prev + 1);
   }, []);
 
   const handleSubmitNumber = () => {
@@ -251,25 +227,59 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
             {activeTab === 'CONTROLS' && (
               <div className="flex-1 flex flex-col h-full">
                 {!game.gameStarted ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
-                    <div className="w-full p-6 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
-                      <div className="w-16 h-16 bg-cyan-100 dark:bg-ai-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                        <Users className="w-8 h-8 text-cyan-600 dark:text-ai-primary" />
+                  <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="w-full p-4 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+                      <div className="w-14 h-14 bg-cyan-100 dark:bg-ai-primary/20 rounded-full flex items-center justify-center mx-auto mb-3 animate-pulse">
+                        <Users className="w-7 h-7 text-cyan-600 dark:text-ai-primary" />
                       </div>
-                      <p className="text-slate-800 dark:text-white font-bold text-lg mb-2">참가자 대기 중</p>
+                      <p className="text-slate-800 dark:text-white font-bold text-base mb-1">참가자 대기 중</p>
                       <p className="text-gray-500 dark:text-ai-dim text-sm">
                         현재 <span className="text-cyan-600 dark:text-ai-primary font-bold">{activeTeams.length}</span>개 팀이 준비되었습니다.
                       </p>
                     </div>
 
-                    <div className="w-full pt-4 border-t border-gray-200 dark:border-white/10">
-                      <Button 
-                        onClick={onStartGame} 
-                        disabled={activeTeams.length < 1} 
+                    {/* Game Mode Selection */}
+                    <div className="w-full p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-200 dark:border-purple-500/30">
+                      <p className="text-purple-800 dark:text-purple-300 font-bold text-sm mb-3">🎮 게임 모드 선택 (필수)</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedMode('CONTROL')}
+                          className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all border-2 ${
+                            selectedMode === 'CONTROL'
+                              ? 'bg-cyan-600 text-white border-cyan-600 dark:bg-ai-primary dark:text-black dark:border-ai-primary shadow-lg'
+                              : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50'
+                          }`}
+                        >
+                          <Gamepad2 className="w-5 h-5 mx-auto mb-1" />
+                          컨트롤
+                          <span className="block text-[10px] font-normal opacity-70 mt-0.5">숫자 오픈</span>
+                        </button>
+                        <button
+                          onClick={() => setSelectedMode('RANDOM_BOARD')}
+                          className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all border-2 ${
+                            selectedMode === 'RANDOM_BOARD'
+                              ? 'bg-pink-600 text-white border-pink-600 dark:bg-ai-accent dark:border-ai-accent shadow-lg'
+                              : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-pink-300 dark:hover:border-ai-accent/50'
+                          }`}
+                        >
+                          <Dices className="w-5 h-5 mx-auto mb-1" />
+                          🎲숫자판
+                          <span className="block text-[10px] font-normal opacity-70 mt-0.5">숫자 숨김</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="w-full pt-3 border-t border-gray-200 dark:border-white/10">
+                      <Button
+                        onClick={() => onStartGame(selectedMode)}
+                        disabled={activeTeams.length < 1 || !selectedMode}
                         className="w-full py-4 text-lg shadow-lg shadow-cyan-500/20 dark:shadow-ai-primary/20"
                       >
                         <Play className="w-5 h-5" /> 게임 시작
                       </Button>
+                      {!selectedMode && (
+                        <p className="text-red-500 text-xs mt-2">⚠️ 게임 모드를 먼저 선택해주세요</p>
+                      )}
                     </div>
                   </div>
                 ) : !game.gameEnded ? (
@@ -406,109 +416,180 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
 
             {activeTab === 'RANDOM_BOARD' && (
               <div className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-3 shrink-0">
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    <Dices className="w-4 h-4 text-pink-600 dark:text-ai-accent" /> 🎲 랜덤 숫자 출제
-                  </h3>
-                  <span className="text-xs text-pink-600 dark:text-ai-accent font-bold">{revealedCovers.size}/40</span>
-                </div>
+                {!game.gameStarted ? (
+                  /* Pre-game: Show mode selection reminder */
+                  <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="w-full p-4 bg-pink-50 dark:bg-pink-500/10 rounded-xl border border-pink-200 dark:border-pink-500/30">
+                      <Dices className="w-12 h-12 mx-auto mb-3 text-pink-600 dark:text-ai-accent" />
+                      <p className="text-pink-800 dark:text-pink-300 font-bold text-sm mb-2">🎲 숫자판 모드</p>
+                      <p className="text-gray-600 dark:text-gray-400 text-xs">
+                        게임 시작 시 "숫자판" 모드를 선택하면<br/>
+                        이 탭에서 숫자를 출제할 수 있습니다.
+                      </p>
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs">
+                      ← "컨트롤" 탭에서 게임을 시작해주세요
+                    </p>
+                  </div>
+                ) : game.gameMode !== 'RANDOM_BOARD' ? (
+                  /* Game started but not in RANDOM_BOARD mode */
+                  <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="w-full p-4 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+                      <Gamepad2 className="w-12 h-12 mx-auto mb-3 text-cyan-600 dark:text-ai-primary" />
+                      <p className="text-slate-800 dark:text-white font-bold text-sm mb-2">컨트롤 모드로 진행 중</p>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs">
+                        현재 게임은 "컨트롤" 모드로 진행 중입니다.<br/>
+                        "컨트롤" 탭에서 숫자를 출제해주세요.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  /* RANDOM_BOARD mode - Active game */
+                  <>
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-2 shrink-0">
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <Dices className="w-4 h-4 text-pink-600 dark:text-ai-accent" /> 🎲 랜덤 숫자 출제
+                      </h3>
+                      <span className="text-xs text-pink-600 dark:text-ai-accent font-bold">{safeRevealedCells.length}/40</span>
+                    </div>
 
-                {/* Buttons */}
-                <div className="flex gap-2 mb-3 shrink-0">
-                  <button
-                    onClick={handleRandomReveal}
-                    disabled={revealedCovers.size >= 40}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs font-bold rounded-lg shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Dices className="w-4 h-4" /> 랜덤 출제
-                  </button>
-                  <button
-                    onClick={handleResetBoard}
-                    className="flex items-center justify-center gap-1 px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-white/10 dark:hover:bg-white/20 text-gray-700 dark:text-white text-xs font-bold rounded-lg transition-all"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                </div>
+                    {/* Current Selection & Submit */}
+                    <div className="mb-2 p-2 bg-gray-900/5 dark:bg-black/40 rounded-lg border border-gray-200 dark:border-white/5 shrink-0">
+                      <div className="flex items-center justify-between">
+                        <div className="text-left">
+                          <span className="text-[10px] font-mono text-gray-500 dark:text-ai-dim uppercase block">선택된 숫자</span>
+                          {game.pendingRandomNumber ? (
+                            <span className="text-lg font-bold text-purple-600 dark:text-ai-secondary">
+                              {game.pendingRandomNumber.value} ({game.pendingRandomNumber.cellLabel})
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-400">숫자를 선택하세요</span>
+                          )}
+                        </div>
+                        <div className="text-3xl font-display font-bold text-green-600 dark:text-ai-success neon-green-text">
+                          {game.currentNumber || '-'}
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Team Placement Status */}
-                {game.gameStarted && !game.gameEnded && game.waitingForPlacements && (
-                  <div className={`mb-2 p-2 rounded-lg border text-xs font-bold shrink-0 ${
-                    allTeamsPlaced
-                      ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400'
-                      : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400'
-                  }`}>
-                    {allTeamsPlaced ? (
-                      <span className="flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> 다음 출제 준비 완료
-                      </span>
-                    ) : (
-                      <div className="flex flex-col gap-0.5">
-                        <span className="flex items-center gap-1">
-                          배치 대기 중... ({unplacedTeams.length}팀 남음)
-                        </span>
-                        {showTimeoutAlert && unplacedTeams.length > 0 && (
-                          <span className="text-red-500 dark:text-red-400 text-[10px] flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />
-                            {unplacedTeams.map(t => `${t.teamNumber}조`).join(', ')}
+                    {/* Buttons */}
+                    <div className="flex gap-2 mb-2 shrink-0">
+                      <button
+                        onClick={onRandomReveal}
+                        disabled={game.waitingForPlacements || safeRevealedCells.length >= 40}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white text-xs font-bold rounded-lg shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Dices className="w-4 h-4" /> 랜덤 선택
+                      </button>
+                    </div>
+
+                    {/* Team Placement Status */}
+                    {game.waitingForPlacements && (
+                      <div className={`mb-2 p-2 rounded-lg border text-xs font-bold shrink-0 ${
+                        allTeamsPlaced
+                          ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400'
+                          : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400'
+                      }`}>
+                        {allTeamsPlaced ? (
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> 다음 출제 준비 완료
                           </span>
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="flex items-center gap-1">
+                              배치 대기 중... ({unplacedTeams.length}팀 남음)
+                            </span>
+                            {showTimeoutAlert && unplacedTeams.length > 0 && (
+                              <span className="text-red-500 dark:text-red-400 text-[10px] flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                {unplacedTeams.map(t => `${t.teamNumber}조`).join(', ')}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
-                  </div>
+
+                    {/* Board Grid */}
+                    <div className="flex-1 overflow-auto">
+                      <div className="grid grid-cols-5 gap-1 p-2 bg-slate-900 dark:bg-black/60 rounded-xl">
+                        {gridLabels.map((label, index) => {
+                          const isRevealed = safeRevealedCells.includes(label);
+                          const number = safeRandomBoardNumbers[index];
+                          const isJoker = number === '★';
+                          const isPending = game.pendingRandomNumber?.cellLabel === label;
+
+                          return (
+                            <button
+                              key={label}
+                              onClick={() => !isRevealed && !game.waitingForPlacements && onSelectRandomCell(label, number)}
+                              disabled={isRevealed || game.waitingForPlacements}
+                              className={`
+                                aspect-square rounded-lg font-bold text-xs transition-all duration-300 transform
+                                ${isRevealed
+                                  ? isJoker
+                                    ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 border border-yellow-300'
+                                    : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-md border border-green-300'
+                                  : isPending
+                                    ? 'bg-purple-600 text-white border-2 border-purple-300 shadow-lg shadow-purple-500/50 scale-105'
+                                    : 'backdrop-blur-md bg-gradient-to-br from-amber-200/60 via-yellow-300/50 to-amber-400/60 hover:from-amber-300/70 hover:via-yellow-400/60 hover:to-amber-500/70 text-amber-900 cursor-pointer hover:scale-105 active:scale-95 border border-amber-300/80 shadow-lg shadow-amber-200/30'
+                                }
+                                ${game.waitingForPlacements && !isRevealed ? 'opacity-50 cursor-not-allowed' : ''}
+                              `}
+                            >
+                              {isRevealed ? (
+                                <span className={`text-lg font-black ${isJoker ? 'animate-pulse' : ''}`}>
+                                  {number}
+                                </span>
+                              ) : isPending ? (
+                                <span className="text-lg font-black animate-pulse">{number}</span>
+                              ) : (
+                                <span className="text-[10px] font-bold opacity-80">{label}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
+                      <button
+                        onClick={onSubmitRandomNumber}
+                        disabled={game.waitingForPlacements || !game.pendingRandomNumber}
+                        className={`
+                          w-full py-2.5 rounded-lg font-bold text-base shadow-lg transition-all flex items-center justify-center gap-2
+                          ${game.waitingForPlacements || !game.pendingRandomNumber
+                            ? 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white hover:scale-[1.02] hover:shadow-purple-500/30'}
+                        `}
+                      >
+                        {game.waitingForPlacements
+                          ? '배치 대기 중...'
+                          : game.pendingRandomNumber
+                            ? `출제하기 (${game.pendingRandomNumber.value})`
+                            : '숫자를 선택하세요'}
+                      </button>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex justify-center gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <span className="w-3 h-3 rounded bg-gradient-to-br from-amber-200 via-yellow-300 to-amber-400 border border-amber-300/50"></span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">미공개</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-3 h-3 rounded bg-purple-600 border border-purple-300"></span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">선택됨</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-3 h-3 rounded bg-gradient-to-br from-green-400 to-emerald-600"></span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">출제완료</span>
+                      </div>
+                    </div>
+                  </>
                 )}
-
-                {/* Board Grid */}
-                <div className="flex-1 overflow-auto">
-                  <div className="grid grid-cols-5 gap-1 p-2 bg-slate-900 dark:bg-black/60 rounded-xl">
-                    {gridLabels.map((label, index) => {
-                      const isRevealed = revealedCovers.has(label);
-                      const number = shuffledNumbers[index];
-                      const isJoker = number === '★';
-
-                      return (
-                        <button
-                          key={label}
-                          onClick={() => handleCoverClick(label)}
-                          disabled={isRevealed}
-                          className={`
-                            aspect-square rounded-lg font-bold text-xs transition-all duration-300 transform
-                            ${isRevealed
-                              ? isJoker
-                                ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 border border-yellow-300'
-                                : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-md border border-green-300'
-                              : 'backdrop-blur-md bg-gradient-to-br from-amber-200/60 via-yellow-300/50 to-amber-400/60 hover:from-amber-300/70 hover:via-yellow-400/60 hover:to-amber-500/70 text-amber-900 cursor-pointer hover:scale-105 active:scale-95 border border-amber-300/80 shadow-lg shadow-amber-200/30'
-                            }
-                          `}
-                        >
-                          {isRevealed ? (
-                            <span className={`text-lg font-black ${isJoker ? 'animate-pulse' : ''}`}>
-                              {number}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold opacity-80">{label}</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex justify-center gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-gradient-to-br from-amber-200 via-yellow-300 to-amber-400 border border-amber-300/50"></span>
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400">미공개</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-gradient-to-br from-green-400 to-emerald-600"></span>
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400">공개</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-gradient-to-br from-yellow-400 to-orange-500"></span>
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400">조커</span>
-                  </div>
-                </div>
               </div>
             )}
           </Panel>

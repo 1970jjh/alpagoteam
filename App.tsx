@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GameState, AppContextState, Team, Player, UserSession, Member, AccessLog, GoogleCredentialResponse, GoogleUserPayload } from './types';
+import { GameState, AppContextState, Team, Player, UserSession, Member, AccessLog, GoogleCredentialResponse, GoogleUserPayload, GameMode } from './types';
 import { createFullDeck, calculatePlayerScore, checkGameEnd, generateGameId, calculateFinalRanking, generatePlayerId, restoreBoardArray } from './utils';
 import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
@@ -46,7 +46,9 @@ const createMockGame = (name: string, teamCount: number, started: boolean, ended
     currentRound: ended ? 20 : started ? 5 : 0,
     finalRanking: [],
     creatorId: 'ADMIN', // Default mock creator to ADMIN
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    gameMode: started ? 'CONTROL' : null,
+    version: 1
   };
 };
 
@@ -474,11 +476,54 @@ const App: React.FC = () => {
 
       // Accept Firebase data (even empty arrays - don't keep mock data)
       // Safety check: ensure newGames is an array
-      const safeGames = Array.isArray(newGames) ? newGames : [];
+      const firebaseGames = Array.isArray(newGames) ? newGames : [];
       isFirebaseUpdate.current = true;
-      setGames(safeGames);
+
+      // Smart merge: preserve local board data if it has more filled cells
+      setGames(prevGames => {
+        const safePrevGames = Array.isArray(prevGames) ? prevGames : [];
+
+        return firebaseGames.map(firebaseGame => {
+          const localGame = safePrevGames.find(g => g.companyName === firebaseGame.companyName);
+          if (!localGame) return firebaseGame;
+
+          // Merge teams: keep the board with more filled cells
+          const localTeams = Array.isArray(localGame.teams) ? localGame.teams : [];
+          const firebaseTeams = Array.isArray(firebaseGame.teams) ? firebaseGame.teams : [];
+
+          const mergedTeams = firebaseTeams.map((fbTeam, idx) => {
+            const localTeam = localTeams[idx];
+            if (!localTeam) return fbTeam;
+
+            const localBoard = restoreBoardArray(localTeam.board);
+            const fbBoard = restoreBoardArray(fbTeam.board);
+
+            const localFilledCount = localBoard.filter(c => c !== null).length;
+            const fbFilledCount = fbBoard.filter(c => c !== null).length;
+
+            // Keep local board if it has more data (more recent placement)
+            if (localFilledCount > fbFilledCount) {
+              console.log(`Preserving local board for team ${fbTeam.teamNumber}: ${localFilledCount} > ${fbFilledCount}`);
+              return {
+                ...fbTeam,
+                board: localBoard,
+                score: localTeam.score,
+                hasPlacedCurrentNumber: localTeam.hasPlacedCurrentNumber,
+                placedBy: localTeam.placedBy
+              };
+            }
+            return fbTeam;
+          });
+
+          return {
+            ...firebaseGame,
+            teams: mergedTeams
+          };
+        });
+      });
+
       // Also save to localStorage as cache
-      saveToStorage(STORAGE_KEYS.GAMES, safeGames);
+      saveToStorage(STORAGE_KEYS.GAMES, firebaseGames);
     });
 
     // Subscribe to members
@@ -851,7 +896,12 @@ const App: React.FC = () => {
       currentRound: 0,
       finalRanking: [],
       creatorId: currentUser.id,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      gameMode: null,
+      randomBoardNumbers: undefined,
+      revealedCells: [],
+      pendingRandomNumber: null,
+      version: 1
     };
 
     setGames(prev => [newGame, ...prev]);
@@ -919,19 +969,51 @@ const App: React.FC = () => {
     });
   };
 
-  const startCompanyGame = () => {
+  // Generate shuffled numbers for RANDOM_BOARD mode
+  const generateRandomBoardNumbers = (): (number | string)[] => {
+    const numbers: (number | string)[] = [];
+    for (let i = 1; i <= 10; i++) numbers.push(i);
+    for (let i = 11; i <= 19; i++) numbers.push(i);
+    for (let i = 11; i <= 19; i++) numbers.push(i);
+    for (let i = 20; i <= 30; i++) numbers.push(i);
+    numbers.push('★');
+    // Shuffle
+    for (let i = numbers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+    }
+    return numbers;
+  };
+
+  const startCompanyGame = (mode: GameMode) => {
     if (!activeGame) return;
+    if (!mode) {
+      alert("게임 모드를 선택해주세요. (컨트롤 또는 숫자판)");
+      return;
+    }
     const gameTeams = Array.isArray(activeGame.teams) ? activeGame.teams : [];
     const activeTeams = gameTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
     if (activeTeams.length < 1) {
       alert("최소 1팀 이상 참가해야 합니다.");
       return;
     }
-    updateGame(activeGame.companyName, {
+
+    const updates: Partial<GameState> = {
       gameStarted: true,
       currentRound: 0,
       currentNumber: null,
-    });
+      gameMode: mode,
+      version: (activeGame.version || 0) + 1
+    };
+
+    // For RANDOM_BOARD mode, generate shuffled numbers
+    if (mode === 'RANDOM_BOARD') {
+      updates.randomBoardNumbers = generateRandomBoardNumbers();
+      updates.revealedCells = [];
+      updates.pendingRandomNumber = null;
+    }
+
+    updateGame(activeGame.companyName, updates);
   };
 
   const selectNumberByHost = (num: number | string, cardIndex: number) => {
@@ -952,7 +1034,93 @@ const App: React.FC = () => {
       availableNumbers: newAvailable,
       waitingForPlacements: true,
       currentRound: activeGame.currentRound + 1,
-      teams: newTeams
+      teams: newTeams,
+      version: (activeGame.version || 0) + 1
+    });
+  };
+
+  // For RANDOM_BOARD mode: select a cell (set as pending)
+  const selectRandomCell = (cellLabel: string, value: number | string) => {
+    if (!activeGame) return;
+    if (activeGame.waitingForPlacements) {
+      alert("모든 팀이 숫자를 배치할 때까지 기다려주세요.");
+      return;
+    }
+
+    const revealedCells = Array.isArray(activeGame.revealedCells) ? activeGame.revealedCells : [];
+    if (revealedCells.includes(cellLabel)) {
+      alert("이미 출제된 셀입니다.");
+      return;
+    }
+
+    updateGame(activeGame.companyName, {
+      pendingRandomNumber: { value, cellLabel },
+      version: (activeGame.version || 0) + 1
+    });
+  };
+
+  // For RANDOM_BOARD mode: submit the pending number
+  const submitRandomNumber = () => {
+    if (!activeGame) return;
+    if (!activeGame.pendingRandomNumber) {
+      alert("출제할 숫자를 먼저 선택해주세요.");
+      return;
+    }
+    if (activeGame.waitingForPlacements) {
+      alert("모든 팀이 숫자를 배치할 때까지 기다려주세요.");
+      return;
+    }
+
+    const { value, cellLabel } = activeGame.pendingRandomNumber;
+    const gameTeams = Array.isArray(activeGame.teams) ? activeGame.teams : [];
+    const revealedCells = Array.isArray(activeGame.revealedCells) ? activeGame.revealedCells : [];
+    const newTeams = gameTeams.map(t => ({ ...t, hasPlacedCurrentNumber: false, placedBy: null }));
+
+    updateGame(activeGame.companyName, {
+      currentNumber: value,
+      usedNumbers: [...(Array.isArray(activeGame.usedNumbers) ? activeGame.usedNumbers : []), value],
+      revealedCells: [...revealedCells, cellLabel],
+      pendingRandomNumber: null,
+      waitingForPlacements: true,
+      currentRound: activeGame.currentRound + 1,
+      teams: newTeams,
+      version: (activeGame.version || 0) + 1
+    });
+  };
+
+  // For RANDOM_BOARD mode: random reveal
+  const randomRevealCell = () => {
+    if (!activeGame) return;
+    if (activeGame.waitingForPlacements) {
+      alert("모든 팀이 숫자를 배치할 때까지 기다려주세요.");
+      return;
+    }
+
+    const revealedCells = Array.isArray(activeGame.revealedCells) ? activeGame.revealedCells : [];
+    const randomBoardNumbers = Array.isArray(activeGame.randomBoardNumbers) ? activeGame.randomBoardNumbers : [];
+
+    // Generate grid labels
+    const gridLabels: string[] = [];
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    for (const row of rows) {
+      for (let col = 1; col <= 5; col++) {
+        gridLabels.push(`${row}${col}`);
+      }
+    }
+
+    const unrevealed = gridLabels.filter(label => !revealedCells.includes(label));
+    if (unrevealed.length === 0) {
+      alert("모든 숫자가 이미 출제되었습니다.");
+      return;
+    }
+
+    const randomLabel = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+    const index = gridLabels.indexOf(randomLabel);
+    const value = randomBoardNumbers[index];
+
+    updateGame(activeGame.companyName, {
+      pendingRandomNumber: { value, cellLabel: randomLabel },
+      version: (activeGame.version || 0) + 1
     });
   };
 
@@ -995,19 +1163,70 @@ const App: React.FC = () => {
 
     let updates: Partial<GameState> = {
       teams: newTeams,
-      waitingForPlacements: !allPlaced
+      waitingForPlacements: !allPlaced,
+      version: (activeGame.version || 0) + 1
     };
 
     if (allPlaced && checkGameEnd({ ...activeGame, ...updates } as GameState)) {
       updates.gameEnded = true;
       updates.finalRanking = calculateFinalRanking({ ...activeGame, ...updates } as GameState);
     }
-    updateGame(activeGame.companyName, updates);
+    updateGameWithMerge(activeGame.companyName, updates, teamIdx, newBoard);
+  };
+
+  // Special update function for board placements that preserves board state
+  // This prevents race conditions where Firebase updates could overwrite local board changes
+  const updateGameWithMerge = (companyName: string, updates: Partial<GameState>, teamIdx: number, newBoard: (number | string | null)[]) => {
+    // Mark that we're making a critical local change
+    lastLocalChangeTime.current = Date.now();
+
+    setGames(prevGames =>
+      prevGames.map(g => {
+        if (g.companyName !== companyName) return g;
+
+        // Get the current teams from prevGames (most up-to-date local state)
+        const currentTeams = Array.isArray(g.teams) ? g.teams : [];
+
+        // Merge: ensure the board update for this specific team is preserved
+        const mergedTeams = updates.teams ? updates.teams.map((updatedTeam: Team, idx: number) => {
+          if (idx === teamIdx) {
+            // For the team that just placed a number, ensure their board is the new board
+            return {
+              ...updatedTeam,
+              board: newBoard
+            };
+          }
+          // For other teams, preserve their existing board state if they have more data
+          const existingTeam = currentTeams[idx];
+          if (existingTeam) {
+            const existingBoard = restoreBoardArray(existingTeam.board);
+            const updatedBoard = restoreBoardArray(updatedTeam.board);
+            // Count filled cells
+            const existingFilledCount = existingBoard.filter(c => c !== null).length;
+            const updatedFilledCount = updatedBoard.filter(c => c !== null).length;
+            // Keep the one with more filled cells (more recent data)
+            if (existingFilledCount > updatedFilledCount) {
+              return {
+                ...updatedTeam,
+                board: existingBoard
+              };
+            }
+          }
+          return updatedTeam;
+        }) : undefined;
+
+        return {
+          ...g,
+          ...updates,
+          teams: mergedTeams || updates.teams || g.teams
+        };
+      })
+    );
   };
 
   const updateGame = (companyName: string, updates: Partial<GameState>) => {
-    setGames(prevGames => 
-      prevGames.map(g => 
+    setGames(prevGames =>
+      prevGames.map(g =>
         g.companyName === companyName ? { ...g, ...updates } : g
       )
     );
@@ -1481,10 +1700,13 @@ const App: React.FC = () => {
       </div>
 
       {session.role === 'HOST' && activeGame && (
-        <HostView 
-          game={activeGame} 
-          onStartGame={startCompanyGame} 
-          onSelectNumber={selectNumberByHost} 
+        <HostView
+          game={activeGame}
+          onStartGame={startCompanyGame}
+          onSelectNumber={selectNumberByHost}
+          onSelectRandomCell={selectRandomCell}
+          onSubmitRandomNumber={submitRandomNumber}
+          onRandomReveal={randomRevealCell}
         />
       )}
       
