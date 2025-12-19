@@ -504,10 +504,19 @@ const App: React.FC = () => {
             const localFilledCount = localBoard.filter(c => c !== null).length;
             const fbFilledCount = fbBoard.filter(c => c !== null).length;
 
-            // CRITICAL: Preserve hasPlacedCurrentNumber if either local or Firebase has it true
-            // This ensures placement status from simultaneous updates is not lost
-            const mergedHasPlaced = localTeam.hasPlacedCurrentNumber === true || fbTeam.hasPlacedCurrentNumber === true;
-            const mergedPlacedBy = mergedHasPlaced ? (localTeam.placedBy || fbTeam.placedBy) : null;
+            // CRITICAL: Check if currentRound changed (new number was issued)
+            // If Firebase has a higher round, we must use Firebase's hasPlacedCurrentNumber (which is false for new round)
+            const firebaseRound = firebaseGame.currentRound || 0;
+            const localRound = localGame.currentRound || 0;
+            const isNewRound = firebaseRound > localRound;
+
+            // For hasPlacedCurrentNumber:
+            // - If new round started (Firebase has higher round), use Firebase's value (false)
+            // - If same round, preserve true if either has it (to handle simultaneous placements)
+            const mergedHasPlaced = isNewRound
+              ? fbTeam.hasPlacedCurrentNumber === true
+              : (localTeam.hasPlacedCurrentNumber === true || fbTeam.hasPlacedCurrentNumber === true);
+            const mergedPlacedBy = mergedHasPlaced ? (fbTeam.placedBy || localTeam.placedBy) : null;
 
             // Keep local board if it has more data (more recent placement)
             if (localFilledCount > fbFilledCount) {
