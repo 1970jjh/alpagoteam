@@ -892,7 +892,16 @@ const App: React.FC = () => {
       return;
     }
 
-    setGames(prev => prev.filter(g => generateGameId(g.companyName) !== gameId));
+    setGames(prev => {
+      const updatedGames = prev.filter(g => generateGameId(g.companyName) !== gameId);
+      // CRITICAL: Save to Firebase immediately when deleting a game
+      if (useFirebase) {
+        lastLocalChangeTime.current = Date.now();
+        saveGames(updatedGames);
+        console.log('Game deleted and saved to Firebase:', targetGame.companyName);
+      }
+      return updatedGames;
+    });
     addLog('DELETE_GAME', `게임 삭제: ${targetGame.companyName}`, { relatedGameName: targetGame.companyName });
   };
 
@@ -958,7 +967,17 @@ const App: React.FC = () => {
       version: 1
     };
 
-    setGames(prev => [newGame, ...prev]);
+    setGames(prev => {
+      const updatedGames = [newGame, ...prev];
+      // CRITICAL: Save to Firebase immediately when creating a game
+      // This ensures the game is visible to participants even if hasReceivedInitialData is still false
+      if (useFirebase) {
+        lastLocalChangeTime.current = Date.now();
+        saveGames(updatedGames);
+        console.log('Game created and saved to Firebase:', companyName);
+      }
+      return updatedGames;
+    });
     const modeLabel = mode === 'CONTROL' ? '컨트롤' : '숫자판';
     addLog('CREATE_GAME', `${companyName} 게임 생성 (${teamCount}개 팀, ${modeLabel} 모드)`, { relatedGameName: companyName });
     
