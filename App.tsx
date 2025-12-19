@@ -504,6 +504,11 @@ const App: React.FC = () => {
             const localFilledCount = localBoard.filter(c => c !== null).length;
             const fbFilledCount = fbBoard.filter(c => c !== null).length;
 
+            // CRITICAL: Preserve hasPlacedCurrentNumber if either local or Firebase has it true
+            // This ensures placement status from simultaneous updates is not lost
+            const mergedHasPlaced = localTeam.hasPlacedCurrentNumber === true || fbTeam.hasPlacedCurrentNumber === true;
+            const mergedPlacedBy = mergedHasPlaced ? (localTeam.placedBy || fbTeam.placedBy) : null;
+
             // Keep local board if it has more data (more recent placement)
             if (localFilledCount > fbFilledCount) {
               console.log(`Preserving local board for team ${fbTeam.teamNumber}: ${localFilledCount} > ${fbFilledCount}`);
@@ -511,16 +516,29 @@ const App: React.FC = () => {
                 ...fbTeam,
                 board: localBoard,
                 score: localTeam.score,
-                hasPlacedCurrentNumber: localTeam.hasPlacedCurrentNumber,
-                placedBy: localTeam.placedBy
+                hasPlacedCurrentNumber: mergedHasPlaced,
+                placedBy: mergedPlacedBy
               };
             }
-            return fbTeam;
+
+            // Even if Firebase board has more/equal data, still preserve hasPlacedCurrentNumber
+            return {
+              ...fbTeam,
+              hasPlacedCurrentNumber: mergedHasPlaced,
+              placedBy: mergedPlacedBy
+            };
           });
+
+          // Recalculate waitingForPlacements based on merged team states
+          const activeTeamsList = mergedTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
+          const allPlaced = activeTeamsList.every(t => t.hasPlacedCurrentNumber === true);
+          const recalculatedWaiting = firebaseGame.waitingForPlacements === true && !allPlaced;
 
           return {
             ...firebaseGame,
-            teams: mergedTeams
+            teams: mergedTeams,
+            // If all teams have placed but Firebase still shows waiting, update it
+            waitingForPlacements: allPlaced ? false : firebaseGame.waitingForPlacements
           };
         });
 
@@ -1204,6 +1222,7 @@ const App: React.FC = () => {
 
   // Special update function for board placements that preserves board state
   // This prevents race conditions where Firebase updates could overwrite local board changes
+  // CRITICAL: Also preserves hasPlacedCurrentNumber status from other teams
   const updateGameWithMerge = (companyName: string, updates: Partial<GameState>, teamIdx: number, newBoard: (number | string | null)[]) => {
     // Mark that we're making a critical local change
     lastLocalChangeTime.current = Date.now();
@@ -1216,6 +1235,7 @@ const App: React.FC = () => {
         const currentTeams = Array.isArray(g.teams) ? g.teams : [];
 
         // Merge: ensure the board update for this specific team is preserved
+        // AND preserve hasPlacedCurrentNumber status from other teams
         const mergedTeams = updates.teams ? updates.teams.map((updatedTeam: Team, idx: number) => {
           if (idx === teamIdx) {
             // For the team that just placed a number, ensure their board is the new board
@@ -1224,7 +1244,7 @@ const App: React.FC = () => {
               board: newBoard
             };
           }
-          // For other teams, preserve their existing board state if they have more data
+          // For other teams, preserve their existing state
           const existingTeam = currentTeams[idx];
           if (existingTeam) {
             const existingBoard = restoreBoardArray(existingTeam.board);
@@ -1232,21 +1252,48 @@ const App: React.FC = () => {
             // Count filled cells
             const existingFilledCount = existingBoard.filter(c => c !== null).length;
             const updatedFilledCount = updatedBoard.filter(c => c !== null).length;
-            // Keep the one with more filled cells (more recent data)
+
+            // CRITICAL: Preserve hasPlacedCurrentNumber if either has it true
+            // This prevents one team's update from overwriting another team's placement status
+            const preservedHasPlaced = existingTeam.hasPlacedCurrentNumber === true || updatedTeam.hasPlacedCurrentNumber === true;
+            const preservedPlacedBy = preservedHasPlaced ? (existingTeam.placedBy || updatedTeam.placedBy) : null;
+
+            // Keep the board with more filled cells (more recent data)
             if (existingFilledCount > updatedFilledCount) {
               return {
                 ...updatedTeam,
-                board: existingBoard
+                board: existingBoard,
+                hasPlacedCurrentNumber: preservedHasPlaced,
+                placedBy: preservedPlacedBy
               };
             }
+
+            // Even if updated board has more/equal data, still preserve hasPlacedCurrentNumber
+            return {
+              ...updatedTeam,
+              hasPlacedCurrentNumber: preservedHasPlaced,
+              placedBy: preservedPlacedBy
+            };
           }
           return updatedTeam;
         }) : undefined;
 
+        // Re-calculate waitingForPlacements based on the properly merged teams
+        const finalTeams = mergedTeams || updates.teams || g.teams;
+        const activeTeamsList = (Array.isArray(finalTeams) ? finalTeams : []).filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
+        const allPlaced = activeTeamsList.every(t => t.hasPlacedCurrentNumber === true);
+
+        console.log('updateGameWithMerge - Recalculated placement status:', {
+          activeTeams: activeTeamsList.length,
+          allPlaced,
+          teamStatuses: activeTeamsList.map(t => ({ teamNumber: t.teamNumber, hasPlaced: t.hasPlacedCurrentNumber }))
+        });
+
         return {
           ...g,
           ...updates,
-          teams: mergedTeams || updates.teams || g.teams
+          teams: finalTeams,
+          waitingForPlacements: !allPlaced  // Override with recalculated value
         };
       })
     );
