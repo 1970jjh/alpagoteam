@@ -271,7 +271,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'CREATE' | 'JOIN'>('JOIN');
   const [createFormName, setCreateFormName] = useState("삼성전자 AI팀");
   const [createFormTeams, setCreateFormTeams] = useState("2");
-  const [createFormMode, setCreateFormMode] = useState<GameMode>(null);
+  // Game mode is always RANDOM_BOARD (removed CONTROL mode)
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [joinName, setJoinName] = useState("");
   const [joinTeamIdx, setJoinTeamIdx] = useState(0);
@@ -915,15 +915,10 @@ const App: React.FC = () => {
     }
   }, [games, activeGame, session.role]);
 
-  const createCompanyGame = (companyName: string, teamCountStr: string, mode: GameMode) => {
+  const createCompanyGame = (companyName: string, teamCountStr: string) => {
     if (!isAuthorized) {
         alert("게임 생성 권한이 없습니다.");
         return;
-    }
-
-    if (!mode) {
-      alert("게임 모드를 선택해주세요. (컨트롤 또는 숫자판)");
-      return;
     }
 
     const teamCount = parseInt(teamCountStr);
@@ -938,6 +933,7 @@ const App: React.FC = () => {
       return;
     }
 
+    // Always use RANDOM_BOARD mode (CONTROL mode removed)
     const newGame: GameState = {
       companyName: companyName,
       teamCount: teamCount,
@@ -960,8 +956,8 @@ const App: React.FC = () => {
       finalRanking: [],
       creatorId: currentUser.id,
       createdAt: new Date().toISOString(),
-      gameMode: mode,
-      randomBoardNumbers: mode === 'RANDOM_BOARD' ? generateRandomBoardNumbers() : undefined,
+      gameMode: 'RANDOM_BOARD',
+      randomBoardNumbers: generateRandomBoardNumbers(),
       revealedCells: [],
       pendingRandomNumber: null,
       version: 1
@@ -978,8 +974,7 @@ const App: React.FC = () => {
       }
       return updatedGames;
     });
-    const modeLabel = mode === 'CONTROL' ? '컨트롤' : '숫자판';
-    addLog('CREATE_GAME', `${companyName} 게임 생성 (${teamCount}개 팀, ${modeLabel} 모드)`, { relatedGameName: companyName });
+    addLog('CREATE_GAME', `${companyName} 게임 생성 (${teamCount}개 팀)`, { relatedGameName: companyName });
     
     setSession({
       gameId: gameId,
@@ -1059,12 +1054,8 @@ const App: React.FC = () => {
     return numbers;
   };
 
-  const startCompanyGame = (mode: GameMode) => {
+  const startCompanyGame = () => {
     if (!activeGame) return;
-    if (!mode) {
-      alert("게임 모드를 선택해주세요. (컨트롤 또는 숫자판)");
-      return;
-    }
     const gameTeams = Array.isArray(activeGame.teams) ? activeGame.teams : [];
     const activeTeams = gameTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0);
     if (activeTeams.length < 1) {
@@ -1072,20 +1063,17 @@ const App: React.FC = () => {
       return;
     }
 
+    // Always use RANDOM_BOARD mode
     const updates: Partial<GameState> = {
       gameStarted: true,
       currentRound: 0,
       currentNumber: null,
-      gameMode: mode,
+      gameMode: 'RANDOM_BOARD',
+      randomBoardNumbers: generateRandomBoardNumbers(),
+      revealedCells: [],
+      pendingRandomNumber: null,
       version: (activeGame.version || 0) + 1
     };
-
-    // For RANDOM_BOARD mode, generate shuffled numbers
-    if (mode === 'RANDOM_BOARD') {
-      updates.randomBoardNumbers = generateRandomBoardNumbers();
-      updates.revealedCells = [];
-      updates.pendingRandomNumber = null;
-    }
 
     updateGame(activeGame.companyName, updates);
   };
@@ -1476,60 +1464,20 @@ const App: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Game Mode Selection */}
-                <div>
-                  <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Game Mode (필수)</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setCreateFormMode('CONTROL')}
-                      className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        createFormMode === 'CONTROL'
-                          ? 'bg-cyan-50 dark:bg-ai-primary/10 border-cyan-500 dark:border-ai-primary'
-                          : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Gamepad2 className={`w-5 h-5 ${createFormMode === 'CONTROL' ? 'text-cyan-600 dark:text-ai-primary' : 'text-gray-400'}`} />
-                        <span className={`font-bold text-sm ${createFormMode === 'CONTROL' ? 'text-cyan-700 dark:text-ai-primary' : 'text-gray-600 dark:text-gray-400'}`}>컨트롤</span>
-                      </div>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
-                        모든 숫자가 보이는 상태에서<br/>
-                        호스트가 직접 선택하여 출제
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreateFormMode('RANDOM_BOARD')}
-                      className={`p-3 rounded-lg border-2 transition-all text-left ${
-                        createFormMode === 'RANDOM_BOARD'
-                          ? 'bg-pink-50 dark:bg-ai-accent/10 border-pink-500 dark:border-ai-accent'
-                          : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-pink-300 dark:hover:border-ai-accent/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Dices className={`w-5 h-5 ${createFormMode === 'RANDOM_BOARD' ? 'text-pink-600 dark:text-ai-accent' : 'text-gray-400'}`} />
-                        <span className={`font-bold text-sm ${createFormMode === 'RANDOM_BOARD' ? 'text-pink-700 dark:text-ai-accent' : 'text-gray-600 dark:text-gray-400'}`}>🎲숫자판</span>
-                      </div>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
-                        A1~H5 숫자가 숨겨진 상태에서<br/>
-                        클릭하거나 랜덤으로 공개 후 출제
-                      </p>
-                    </button>
+                {/* Game Mode Info - Always RANDOM_BOARD */}
+                <div className="p-3 bg-pink-50 dark:bg-ai-accent/10 rounded-lg border border-pink-200 dark:border-ai-accent/30">
+                  <div className="flex items-center gap-2">
+                    <Dices className="w-5 h-5 text-pink-600 dark:text-ai-accent" />
+                    <span className="font-bold text-sm text-pink-700 dark:text-ai-accent">🎲 숫자판 모드</span>
                   </div>
-                  {!createFormMode && (
-                    <p className="text-red-500 text-[10px] mt-1">⚠️ 게임 모드를 선택해주세요</p>
-                  )}
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                    A1~H5 숫자가 숨겨진 상태에서 클릭하거나 랜덤으로 공개 후 출제
+                  </p>
                 </div>
 
                 <button
-                  onClick={() => createCompanyGame(createFormName, createFormTeams, createFormMode)}
-                  disabled={!createFormMode}
-                  className={`w-full py-4 mt-2 font-bold rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 uppercase tracking-wider ${
-                    createFormMode
-                      ? 'bg-cyan-600 text-white dark:bg-ai-primary/10 border dark:border-ai-primary dark:text-ai-primary hover:bg-cyan-700 dark:hover:bg-ai-primary dark:hover:text-black'
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  }`}
+                  onClick={() => createCompanyGame(createFormName, createFormTeams)}
+                  className="w-full py-4 mt-2 font-bold rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 uppercase tracking-wider bg-pink-600 text-white dark:bg-ai-accent/10 border dark:border-ai-accent dark:text-ai-accent hover:bg-pink-700 dark:hover:bg-ai-accent dark:hover:text-black"
                 >
                   <Building2 className="w-5 h-5" /> Create Game
                 </button>
@@ -1572,9 +1520,7 @@ const App: React.FC = () => {
                         </div>
                         <p className="text-xs text-gray-500 mb-3 font-mono">
                           {joinedTeams}/{g.teamCount} Teams • {activeCount} Players •
-                          <span className={`ml-1 ${g.gameMode === 'CONTROL' ? 'text-cyan-600 dark:text-ai-primary' : g.gameMode === 'RANDOM_BOARD' ? 'text-pink-600 dark:text-ai-accent' : 'text-gray-400'}`}>
-                            {g.gameMode === 'CONTROL' ? '컨트롤' : g.gameMode === 'RANDOM_BOARD' ? '🎲숫자판' : '미정'}
-                          </span>
+                          <span className="ml-1 text-pink-600 dark:text-ai-accent">🎲숫자판</span>
                         </p>
                         {!g.gameEnded && (
                           <button
@@ -1860,7 +1806,6 @@ const App: React.FC = () => {
         <HostView
           game={activeGame}
           onStartGame={startCompanyGame}
-          onSelectNumber={selectNumberByHost}
           onSelectRandomCell={selectRandomCell}
           onSubmitRandomNumber={submitRandomNumber}
           onRandomReveal={randomRevealCell}
