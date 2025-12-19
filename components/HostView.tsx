@@ -83,10 +83,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
     return () => clearInterval(intervalId);
   }, [placementStartTime, game.waitingForPlacements, unplacedTeams]);
 
-  // Generate the full deck structure (Flat array of 40 items)
-  const FULL_DECK = useMemo(() => createFullDeck(), []);
-
-  // Grid labels (A1-H5)
+  // Grid labels (A1-H5) for RANDOM_BOARD mode
   const gridLabels = useMemo(() => {
     const labels: string[] = [];
     const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -97,30 +94,6 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
     }
     return labels;
   }, []);
-
-  const handleSubmitNumber = () => {
-    if (pendingSelection !== null) {
-      onSelectNumber(pendingSelection.val, pendingSelection.idx);
-      setPendingSelection(null);
-    }
-  };
-
-  const handleRandomSelect = () => {
-    if (game.waitingForPlacements || game.gameEnded) return;
-    
-    // Find all available indices (0-39) that are NOT in game.usedCardIndices
-    const availableIndices = FULL_DECK.map((_, idx) => idx).filter(
-      idx => !safeUsedCardIndices.includes(idx)
-    );
-
-    if (availableIndices.length === 0) return;
-
-    // Pick random index
-    const randomIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
-    const val = FULL_DECK[randomIdx];
-    
-    setPendingSelection({ val, idx: randomIdx });
-  };
 
   // Logic to determine which teams to display in the main grid (Top 8)
   const displayedTeams = useMemo(() => {
