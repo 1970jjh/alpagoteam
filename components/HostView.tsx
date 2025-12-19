@@ -42,8 +42,8 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
   // State for Team Detail View Modal
   const [viewingTeam, setViewingTeam] = useState<Team | null>(null);
 
-  // Game mode selection before game start
-  const [selectedMode, setSelectedMode] = useState<GameMode>(null);
+  // Game mode selection before game start - default to the game's pre-set mode
+  const [selectedMode, setSelectedMode] = useState<GameMode>(game.gameMode);
 
   // Timer state for 1-minute placement timeout alert
   const [placementStartTime, setPlacementStartTime] = useState<number | null>(null);
@@ -238,35 +238,34 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectN
                       </p>
                     </div>
 
-                    {/* Game Mode Selection */}
-                    <div className="w-full p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-200 dark:border-purple-500/30">
-                      <p className="text-purple-800 dark:text-purple-300 font-bold text-sm mb-3">🎮 게임 모드 선택 (필수)</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSelectedMode('CONTROL')}
-                          className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all border-2 ${
-                            selectedMode === 'CONTROL'
-                              ? 'bg-cyan-600 text-white border-cyan-600 dark:bg-ai-primary dark:text-black dark:border-ai-primary shadow-lg'
-                              : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50'
-                          }`}
-                        >
-                          <Gamepad2 className="w-5 h-5 mx-auto mb-1" />
-                          컨트롤
-                          <span className="block text-[10px] font-normal opacity-70 mt-0.5">숫자 오픈</span>
-                        </button>
-                        <button
-                          onClick={() => setSelectedMode('RANDOM_BOARD')}
-                          className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all border-2 ${
-                            selectedMode === 'RANDOM_BOARD'
-                              ? 'bg-pink-600 text-white border-pink-600 dark:bg-ai-accent dark:border-ai-accent shadow-lg'
-                              : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-pink-300 dark:hover:border-ai-accent/50'
-                          }`}
-                        >
-                          <Dices className="w-5 h-5 mx-auto mb-1" />
-                          🎲숫자판
-                          <span className="block text-[10px] font-normal opacity-70 mt-0.5">숫자 숨김</span>
-                        </button>
-                      </div>
+                    {/* Show selected game mode */}
+                    <div className={`w-full p-4 rounded-xl border ${
+                      selectedMode === 'CONTROL'
+                        ? 'bg-cyan-50 dark:bg-ai-primary/10 border-cyan-200 dark:border-ai-primary/30'
+                        : selectedMode === 'RANDOM_BOARD'
+                          ? 'bg-pink-50 dark:bg-pink-500/10 border-pink-200 dark:border-pink-500/30'
+                          : 'bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30'
+                    }`}>
+                      <p className="text-gray-600 dark:text-gray-300 font-bold text-sm mb-2">🎮 게임 모드</p>
+                      {selectedMode ? (
+                        <div className="flex items-center justify-center gap-2">
+                          {selectedMode === 'CONTROL' ? (
+                            <>
+                              <Gamepad2 className="w-6 h-6 text-cyan-600 dark:text-ai-primary" />
+                              <span className="text-lg font-bold text-cyan-700 dark:text-ai-primary">컨트롤</span>
+                              <span className="text-xs text-gray-500">(숫자 오픈)</span>
+                            </>
+                          ) : (
+                            <>
+                              <Dices className="w-6 h-6 text-pink-600 dark:text-ai-accent" />
+                              <span className="text-lg font-bold text-pink-700 dark:text-ai-accent">🎲숫자판</span>
+                              <span className="text-xs text-gray-500">(숫자 숨김)</span>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-red-500 text-xs">⚠️ 게임 모드가 설정되지 않았습니다</p>
+                      )}
                     </div>
 
                     <div className="w-full pt-3 border-t border-gray-200 dark:border-white/10">

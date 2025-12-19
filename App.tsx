@@ -6,7 +6,7 @@ import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
 import { PlayerView } from './components/PlayerView';
 import { AdminDashboard } from './components/AdminDashboard';
-import { Hexagon, RefreshCw, Building2, Lock, LogIn, UserCog, ShieldCheck, LogOut, Sun, Moon, Trash2 } from 'lucide-react';
+import { Hexagon, RefreshCw, Building2, Lock, LogIn, UserCog, ShieldCheck, LogOut, Sun, Moon, Trash2, Gamepad2, Dices } from 'lucide-react';
 import {
   isFirebaseConfigured,
   subscribeToGames,
@@ -271,6 +271,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'CREATE' | 'JOIN'>('JOIN');
   const [createFormName, setCreateFormName] = useState("삼성전자 AI팀");
   const [createFormTeams, setCreateFormTeams] = useState("2");
+  const [createFormMode, setCreateFormMode] = useState<GameMode>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [joinName, setJoinName] = useState("");
   const [joinTeamIdx, setJoinTeamIdx] = useState(0);
@@ -480,10 +481,12 @@ const App: React.FC = () => {
       isFirebaseUpdate.current = true;
 
       // Smart merge: preserve local board data if it has more filled cells
+      // AND preserve locally created games that haven't synced to Firebase yet
       setGames(prevGames => {
         const safePrevGames = Array.isArray(prevGames) ? prevGames : [];
 
-        return firebaseGames.map(firebaseGame => {
+        // Start with Firebase games, merged with local data
+        const mergedGames = firebaseGames.map(firebaseGame => {
           const localGame = safePrevGames.find(g => g.companyName === firebaseGame.companyName);
           if (!localGame) return firebaseGame;
 
@@ -520,6 +523,25 @@ const App: React.FC = () => {
             teams: mergedTeams
           };
         });
+
+        // Add locally created games that don't exist in Firebase yet
+        // These are games created within the last 10 seconds (to allow for sync delay)
+        const localOnlyGames = safePrevGames.filter(localGame => {
+          const existsInFirebase = firebaseGames.some(fbGame => fbGame.companyName === localGame.companyName);
+          if (existsInFirebase) return false;
+
+          // Check if this game was created recently (within 10 seconds)
+          const createdAt = new Date(localGame.createdAt).getTime();
+          const now = Date.now();
+          const isRecentlyCreated = (now - createdAt) < 10000; // 10 seconds
+
+          if (isRecentlyCreated) {
+            console.log(`Preserving locally created game: ${localGame.companyName}`);
+          }
+          return isRecentlyCreated;
+        });
+
+        return [...localOnlyGames, ...mergedGames];
       });
 
       // Also save to localStorage as cache
@@ -857,10 +879,15 @@ const App: React.FC = () => {
     }
   }, [games, activeGame, session.role]);
 
-  const createCompanyGame = (companyName: string, teamCountStr: string) => {
+  const createCompanyGame = (companyName: string, teamCountStr: string, mode: GameMode) => {
     if (!isAuthorized) {
         alert("게임 생성 권한이 없습니다.");
         return;
+    }
+
+    if (!mode) {
+      alert("게임 모드를 선택해주세요. (컨트롤 또는 숫자판)");
+      return;
     }
 
     const teamCount = parseInt(teamCountStr);
@@ -897,15 +924,16 @@ const App: React.FC = () => {
       finalRanking: [],
       creatorId: currentUser.id,
       createdAt: new Date().toISOString(),
-      gameMode: null,
-      randomBoardNumbers: undefined,
+      gameMode: mode,
+      randomBoardNumbers: mode === 'RANDOM_BOARD' ? generateRandomBoardNumbers() : undefined,
       revealedCells: [],
       pendingRandomNumber: null,
       version: 1
     };
 
     setGames(prev => [newGame, ...prev]);
-    addLog('CREATE_GAME', `${companyName} 게임 생성 (${teamCount}개 팀)`, { relatedGameName: companyName });
+    const modeLabel = mode === 'CONTROL' ? '컨트롤' : '숫자판';
+    addLog('CREATE_GAME', `${companyName} 게임 생성 (${teamCount}개 팀, ${modeLabel} 모드)`, { relatedGameName: companyName });
     
     setSession({
       gameId: gameId,
@@ -1353,7 +1381,7 @@ const App: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Company Name</label>
-                  <input 
+                  <input
                     className="glass-input w-full px-4 py-3 rounded-lg focus:border-cyan-500 dark:focus:border-ai-primary focus:ring-1 focus:ring-cyan-500/50 dark:focus:ring-ai-primary/50 outline-none transition-all text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 bg-gray-50 dark:bg-black/30"
                     value={createFormName}
                     onChange={e => setCreateFormName(e.target.value)}
@@ -1362,7 +1390,7 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Team Count</label>
-                  <select 
+                  <select
                     className="glass-input w-full px-4 py-3 rounded-lg focus:border-cyan-500 dark:focus:border-ai-primary outline-none text-slate-800 dark:text-white bg-gray-50 dark:bg-black/50"
                     value={createFormTeams}
                     onChange={e => setCreateFormTeams(e.target.value)}
@@ -1372,10 +1400,61 @@ const App: React.FC = () => {
                     ))}
                   </select>
                 </div>
-                
-                <button 
-                  onClick={() => createCompanyGame(createFormName, createFormTeams)}
-                  className="w-full py-4 mt-4 bg-cyan-600 text-white dark:bg-ai-primary/10 border dark:border-ai-primary dark:text-ai-primary hover:bg-cyan-700 dark:hover:bg-ai-primary dark:hover:text-black font-bold rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 uppercase tracking-wider"
+
+                {/* Game Mode Selection */}
+                <div>
+                  <label className="block text-xs font-mono font-bold text-gray-500 dark:text-ai-dim mb-2 uppercase">Game Mode (필수)</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCreateFormMode('CONTROL')}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        createFormMode === 'CONTROL'
+                          ? 'bg-cyan-50 dark:bg-ai-primary/10 border-cyan-500 dark:border-ai-primary'
+                          : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-cyan-300 dark:hover:border-ai-primary/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Gamepad2 className={`w-5 h-5 ${createFormMode === 'CONTROL' ? 'text-cyan-600 dark:text-ai-primary' : 'text-gray-400'}`} />
+                        <span className={`font-bold text-sm ${createFormMode === 'CONTROL' ? 'text-cyan-700 dark:text-ai-primary' : 'text-gray-600 dark:text-gray-400'}`}>컨트롤</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                        모든 숫자가 보이는 상태에서<br/>
+                        호스트가 직접 선택하여 출제
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateFormMode('RANDOM_BOARD')}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        createFormMode === 'RANDOM_BOARD'
+                          ? 'bg-pink-50 dark:bg-ai-accent/10 border-pink-500 dark:border-ai-accent'
+                          : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-pink-300 dark:hover:border-ai-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Dices className={`w-5 h-5 ${createFormMode === 'RANDOM_BOARD' ? 'text-pink-600 dark:text-ai-accent' : 'text-gray-400'}`} />
+                        <span className={`font-bold text-sm ${createFormMode === 'RANDOM_BOARD' ? 'text-pink-700 dark:text-ai-accent' : 'text-gray-600 dark:text-gray-400'}`}>🎲숫자판</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">
+                        A1~H5 숫자가 숨겨진 상태에서<br/>
+                        클릭하거나 랜덤으로 공개 후 출제
+                      </p>
+                    </button>
+                  </div>
+                  {!createFormMode && (
+                    <p className="text-red-500 text-[10px] mt-1">⚠️ 게임 모드를 선택해주세요</p>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => createCompanyGame(createFormName, createFormTeams, createFormMode)}
+                  disabled={!createFormMode}
+                  className={`w-full py-4 mt-2 font-bold rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 uppercase tracking-wider ${
+                    createFormMode
+                      ? 'bg-cyan-600 text-white dark:bg-ai-primary/10 border dark:border-ai-primary dark:text-ai-primary hover:bg-cyan-700 dark:hover:bg-ai-primary dark:hover:text-black'
+                      : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  }`}
                 >
                   <Building2 className="w-5 h-5" /> Create Game
                 </button>
@@ -1417,7 +1496,10 @@ const App: React.FC = () => {
                           </div>
                         </div>
                         <p className="text-xs text-gray-500 mb-3 font-mono">
-                          {joinedTeams}/{g.teamCount} Teams • {activeCount} Players
+                          {joinedTeams}/{g.teamCount} Teams • {activeCount} Players •
+                          <span className={`ml-1 ${g.gameMode === 'CONTROL' ? 'text-cyan-600 dark:text-ai-primary' : g.gameMode === 'RANDOM_BOARD' ? 'text-pink-600 dark:text-ai-accent' : 'text-gray-400'}`}>
+                            {g.gameMode === 'CONTROL' ? '컨트롤' : g.gameMode === 'RANDOM_BOARD' ? '🎲숫자판' : '미정'}
+                          </span>
                         </p>
                         {!g.gameEnded && (
                           <button
