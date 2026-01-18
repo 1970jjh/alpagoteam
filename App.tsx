@@ -14,7 +14,8 @@ import {
   subscribeToLogs,
   saveGames,
   saveMembers,
-  saveLogs
+  saveLogs,
+  getGames
 } from './firebase';
 
 // --- MOCK DATA ---
@@ -905,6 +906,26 @@ const App: React.FC = () => {
     addLog('DELETE_GAME', `게임 삭제: ${targetGame.companyName}`, { relatedGameName: targetGame.companyName });
   };
 
+  // --- REFRESH GAMES FROM FIREBASE ---
+  const refreshGamesFromFirebase = async () => {
+    if (!useFirebase) {
+      console.log('Firebase not configured, cannot refresh');
+      return;
+    }
+
+    try {
+      console.log('Refreshing games from Firebase...');
+      const freshGames = await getGames();
+      const safeFreshGames = Array.isArray(freshGames) ? freshGames : [];
+      isFirebaseUpdate.current = true;
+      setGames(safeFreshGames);
+      saveToStorage(STORAGE_KEYS.GAMES, safeFreshGames);
+      console.log('Games refreshed from Firebase:', safeFreshGames.length, 'games');
+    } catch (error) {
+      console.error('Failed to refresh games from Firebase:', error);
+    }
+  };
+
   // --- GAME LOGIC ---
   useEffect(() => {
     if (activeGame && session.role !== 'NONE') {
@@ -1486,7 +1507,7 @@ const App: React.FC = () => {
               <div className="space-y-4 animate-fade-in">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-sm font-bold text-slate-700 dark:text-gray-300">Active Games</h3>
-                  <button onClick={() => setGames([...safeGames])} className="text-xs text-cyan-600 dark:text-ai-primary flex items-center gap-1 hover:text-cyan-800 dark:hover:text-white transition-colors">
+                  <button onClick={refreshGamesFromFirebase} className="text-xs text-cyan-600 dark:text-ai-primary flex items-center gap-1 hover:text-cyan-800 dark:hover:text-white transition-colors">
                     <RefreshCw className="w-3 h-3" /> Refresh
                   </button>
                 </div>
