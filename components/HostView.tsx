@@ -91,6 +91,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
   const [musicStatus, setMusicStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
   const playerRef = useRef<any>(null);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const stoppedByUserRef = useRef(false);
 
   // YouTube Player initialization
   useEffect(() => {
@@ -117,6 +118,10 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
           },
           events: {
             onStateChange: (event: any) => {
+              // Don't update state if user intentionally stopped
+              if (stoppedByUserRef.current) {
+                return;
+              }
               if (event.data === window.YT.PlayerState.PLAYING) {
                 setMusicStatus('playing');
               } else if (event.data === window.YT.PlayerState.PAUSED) {
@@ -145,26 +150,36 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
 
   // Music control functions
   const playMusic = useCallback(() => {
-    if (playerRef.current && playerRef.current.playVideo) {
-      playerRef.current.playVideo();
+    if (playerRef.current) {
+      stoppedByUserRef.current = false;
+      if (playerRef.current.seekTo) {
+        playerRef.current.seekTo(0);
+      }
+      if (playerRef.current.playVideo) {
+        playerRef.current.playVideo();
+      }
     }
   }, []);
 
   const pauseMusic = useCallback(() => {
     if (playerRef.current && playerRef.current.pauseVideo) {
+      stoppedByUserRef.current = false;
       playerRef.current.pauseVideo();
     }
   }, []);
 
   const stopMusic = useCallback(() => {
     if (playerRef.current) {
-      if (playerRef.current.stopVideo) {
-        playerRef.current.stopVideo();
+      stoppedByUserRef.current = true;
+      if (playerRef.current.pauseVideo) {
+        playerRef.current.pauseVideo();
       }
       if (playerRef.current.seekTo) {
         playerRef.current.seekTo(0);
       }
       setMusicStatus('stopped');
+    }
+  }, []);
     }
   }, []);
 
