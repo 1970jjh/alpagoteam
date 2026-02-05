@@ -207,7 +207,7 @@ const App: React.FC = () => {
 
   // Track recent local changes to prevent Firebase from overwriting them
   const lastLocalChangeTime = useRef<number>(0);
-  const LOCAL_CHANGE_DEBOUNCE = 2000; // 2 seconds debounce
+  const LOCAL_CHANGE_DEBOUNCE = 300; // 300ms debounce (reduced for faster sync)
 
   // Track if we've received initial Firebase data (prevent overwriting Firebase with mock data)
   const hasReceivedInitialData = useRef(false);
@@ -469,11 +469,12 @@ const App: React.FC = () => {
       // Mark that we've received initial data from Firebase
       hasReceivedInitialData.current = true;
 
-      // Skip if there was a recent local change (prevent race condition)
+      // Check if there was a very recent local change
       const timeSinceLocalChange = Date.now() - lastLocalChangeTime.current;
-      if (timeSinceLocalChange < LOCAL_CHANGE_DEBOUNCE) {
-        console.log('Skipping Firebase update due to recent local change');
-        return;
+      const hasRecentLocalChange = timeSinceLocalChange < LOCAL_CHANGE_DEBOUNCE;
+
+      if (hasRecentLocalChange) {
+        console.log('Recent local change detected, will use smart merge');
       }
 
       // Accept Firebase data (even empty arrays - don't keep mock data)
@@ -490,6 +491,15 @@ const App: React.FC = () => {
         const mergedGames = firebaseGames.map(firebaseGame => {
           const localGame = safePrevGames.find(g => g.companyName === firebaseGame.companyName);
           if (!localGame) return firebaseGame;
+
+          // Use version comparison to determine most recent data
+          const firebaseVersion = firebaseGame.version || 0;
+          const localVersion = localGame.version || 0;
+
+          // If Firebase has newer version and no recent local change, prefer Firebase entirely
+          if (firebaseVersion > localVersion && !hasRecentLocalChange) {
+            return firebaseGame;
+          }
 
           // Merge teams: keep the board with more filled cells
           const localTeams = Array.isArray(localGame.teams) ? localGame.teams : [];
