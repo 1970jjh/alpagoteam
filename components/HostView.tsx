@@ -326,13 +326,13 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                     <div className="mb-2 p-2 bg-gray-900/5 dark:bg-black/40 rounded-lg border border-gray-200 dark:border-white/5 shrink-0">
                       <div className="flex items-center justify-between">
                         <div className="text-left">
-                          <span className="text-[10px] font-mono text-gray-500 dark:text-ai-dim uppercase block">선택된 숫자</span>
+                          <span className="text-[10px] font-mono text-gray-500 dark:text-ai-dim uppercase block">선택된 카드</span>
                           {game.pendingRandomNumber ? (
                             <span className="text-lg font-bold text-purple-600 dark:text-ai-secondary">
-                              {game.pendingRandomNumber.value} ({game.pendingRandomNumber.cellLabel})
+                              {game.pendingRandomNumber.cellLabel} <span className="text-gray-400">(?)</span>
                             </span>
                           ) : (
-                            <span className="text-sm text-gray-400">숫자를 선택하세요</span>
+                            <span className="text-sm text-gray-400">카드를 선택하세요</span>
                           )}
                         </div>
                         <div className="text-3xl font-display font-bold text-green-600 dark:text-ai-success neon-green-text">
@@ -411,7 +411,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                                   {number}
                                 </span>
                               ) : isPending ? (
-                                <span className="text-lg font-black animate-pulse">{number}</span>
+                                <span className="text-2xl font-black animate-pulse">?</span>
                               ) : (
                                 <span className="text-xl font-black text-gray-800">{label}</span>
                               )}
@@ -436,8 +436,8 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                         {game.waitingForPlacements
                           ? '배치 대기 중...'
                           : game.pendingRandomNumber
-                            ? `출제하기 (${game.pendingRandomNumber.value})`
-                            : '숫자를 선택하세요'}
+                            ? `🎲 출제하기 (${game.pendingRandomNumber.cellLabel})`
+                            : '카드를 선택하세요'}
                       </button>
                     </div>
 

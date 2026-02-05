@@ -213,7 +213,7 @@ const App: React.FC = () => {
   const hasReceivedInitialData = useRef(false);
 
   // Theme State
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   // Authentication State
   const [currentUser, setCurrentUser] = useState<UserSession>({
