@@ -6,7 +6,7 @@ import { GridBackground, Panel, Input, Button, Footer } from './components/UI';
 import { HostView } from './components/HostView';
 import { PlayerView } from './components/PlayerView';
 import { AdminDashboard } from './components/AdminDashboard';
-import { Hexagon, RefreshCw, Building2, Lock, LogIn, UserCog, ShieldCheck, LogOut, Sun, Moon, Trash2, Gamepad2, Dices } from 'lucide-react';
+import { Hexagon, RefreshCw, Building2, Lock, LogIn, UserCog, ShieldCheck, LogOut, Sun, Moon, Trash2, Gamepad2, Dices, Users } from 'lucide-react';
 import {
   isFirebaseConfigured,
   subscribeToGames,
@@ -1502,6 +1502,58 @@ const App: React.FC = () => {
                 >
                   <Building2 className="w-5 h-5" /> Create Game
                 </button>
+
+                {/* Existing Games Section for Admin */}
+                {safeGames.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/10">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-bold text-slate-700 dark:text-gray-300 flex items-center gap-2">
+                        <Users className="w-4 h-4" /> 기존 게임 입장
+                      </h3>
+                      <button onClick={refreshGamesFromFirebase} className="text-xs text-cyan-600 dark:text-ai-primary flex items-center gap-1 hover:text-cyan-800 dark:hover:text-white transition-colors">
+                        <RefreshCw className="w-3 h-3" /> Refresh
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                      {safeGames.filter(g => !g.gameEnded).map(g => {
+                        const safeTeams = Array.isArray(g.teams) ? g.teams : [];
+                        const joinedTeams = safeTeams.filter(t => (Array.isArray(t.players) ? t.players : []).length > 0).length;
+                        return (
+                          <div
+                            key={generateGameId(g.companyName)}
+                            className="flex items-center justify-between p-3 border border-gray-200 dark:border-white/10 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-cyan-50 dark:hover:bg-ai-primary/10 hover:border-cyan-300 dark:hover:border-ai-primary/50 transition-all"
+                          >
+                            <div>
+                              <h4 className="font-bold text-sm text-slate-800 dark:text-white">{g.companyName}</h4>
+                              <p className="text-[10px] text-gray-500 font-mono">
+                                {joinedTeams}/{g.teamCount} Teams •
+                                <span className={`ml-1 ${g.gameStarted ? 'text-green-600 dark:text-ai-success' : 'text-blue-600 dark:text-blue-400'}`}>
+                                  {g.gameStarted ? '진행중' : '대기중'}
+                                </span>
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                // Enter directly as HOST (admin dashboard)
+                                setSession({
+                                  gameId: generateGameId(g.companyName),
+                                  game: g,
+                                  role: 'HOST',
+                                  myTeamId: null,
+                                  myPlayerId: null,
+                                  myPlayerName: null
+                                });
+                              }}
+                              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded transition-all"
+                            >
+                              입장
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : !selectedGameId ? (
               <div className="space-y-4 animate-fade-in">

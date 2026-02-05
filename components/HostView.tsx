@@ -2,8 +2,16 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { GameState, Team } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
-import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, ListOrdered, Dices, AlertTriangle } from 'lucide-react';
+import { Play, Pause, Square, Music, Trophy, Users, Activity, CheckCircle2, Eye, X, ListOrdered, Dices, AlertTriangle } from 'lucide-react';
 import { getScoringGroups, restoreBoardArray } from '../utils';
+
+// YouTube IFrame API types
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
 
 // Fanfare sound using Web Audio API
 const playFanfare = () => {
@@ -78,6 +86,87 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
   const [showNumberPopup, setShowNumberPopup] = useState(false);
   const [popupNumber, setPopupNumber] = useState<number | string | null>(null);
   const prevCurrentNumber = useRef(game.currentNumber);
+
+  // Music player state
+  const [musicStatus, setMusicStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
+  const playerRef = useRef<any>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  // YouTube Player initialization
+  useEffect(() => {
+    // Load YouTube IFrame API
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    const initPlayer = () => {
+      if (playerContainerRef.current && window.YT && window.YT.Player) {
+        playerRef.current = new window.YT.Player(playerContainerRef.current, {
+          height: '0',
+          width: '0',
+          videoId: 'F6MI5hkLNEk',
+          playerVars: {
+            autoplay: 0,
+            controls: 0,
+            disablekb: 1,
+            loop: 1,
+            playlist: 'F6MI5hkLNEk',
+          },
+          events: {
+            onStateChange: (event: any) => {
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setMusicStatus('playing');
+              } else if (event.data === window.YT.PlayerState.PAUSED) {
+                setMusicStatus('paused');
+              } else if (event.data === window.YT.PlayerState.ENDED) {
+                setMusicStatus('stopped');
+              }
+            },
+          },
+        });
+      }
+    };
+
+    if (window.YT && window.YT.Player) {
+      initPlayer();
+    } else {
+      window.onYouTubeIframeAPIReady = initPlayer;
+    }
+
+    return () => {
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // Music control functions
+  const playMusic = useCallback(() => {
+    if (playerRef.current && playerRef.current.playVideo) {
+      playerRef.current.playVideo();
+    }
+  }, []);
+
+  const pauseMusic = useCallback(() => {
+    if (playerRef.current && playerRef.current.pauseVideo) {
+      playerRef.current.pauseVideo();
+    }
+  }, []);
+
+  const stopMusic = useCallback(() => {
+    if (playerRef.current) {
+      if (playerRef.current.stopVideo) {
+        playerRef.current.stopVideo();
+      }
+      if (playerRef.current.seekTo) {
+        playerRef.current.seekTo(0);
+      }
+      setMusicStatus('stopped');
+    }
+  }, []);
 
   // Calculate unplaced teams
   const unplacedTeams = useMemo(() => {
@@ -203,6 +292,9 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
         </span>
       </div>
 
+      {/* Hidden YouTube Player */}
+      <div ref={playerContainerRef} className="hidden" />
+
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white tracking-tight">
@@ -210,11 +302,54 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
           </h1>
           <p className="text-gray-500 dark:text-ai-dim font-mono text-xs mt-1">COMPANY: {game.companyName}</p>
         </div>
-        
-        <div className="flex gap-4 p-2 glass-panel rounded-xl scale-90 origin-right shadow-sm">
-           <Badge label="라운드" value={`${game.currentRound}/20`} />
-           <Badge label="참가 팀" value={`${activeTeams.length}/${game.teamCount}`} color="text-purple-600 dark:text-ai-secondary" />
-           <Badge label="상태" value={game.gameEnded ? "종료됨" : game.gameStarted ? "진행중" : "대기중"} color={game.gameStarted ? "text-green-600 dark:text-ai-success" : "text-gray-700 dark:text-white"} />
+
+        <div className="flex items-center gap-3">
+          {/* Music Controls */}
+          <div className="flex items-center gap-1 p-1.5 glass-panel rounded-xl shadow-sm">
+            <div className="flex items-center gap-1 px-2">
+              <Music className={`w-4 h-4 ${musicStatus === 'playing' ? 'text-green-500 animate-pulse' : 'text-gray-400'}`} />
+              <span className="text-[10px] font-mono text-gray-500 dark:text-gray-400 hidden sm:inline">BGM</span>
+            </div>
+            <button
+              onClick={playMusic}
+              disabled={musicStatus === 'playing'}
+              className={`p-2 rounded-lg transition-all ${
+                musicStatus === 'playing'
+                  ? 'bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400'
+                  : 'bg-gray-100 hover:bg-green-100 text-gray-600 hover:text-green-600 dark:bg-white/10 dark:hover:bg-green-500/20 dark:text-gray-400 dark:hover:text-green-400'
+              }`}
+              title="재생"
+            >
+              <Play className="w-4 h-4" />
+            </button>
+            <button
+              onClick={pauseMusic}
+              disabled={musicStatus !== 'playing'}
+              className={`p-2 rounded-lg transition-all ${
+                musicStatus === 'paused'
+                  ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-500/20 dark:text-yellow-400'
+                  : 'bg-gray-100 hover:bg-yellow-100 text-gray-600 hover:text-yellow-600 dark:bg-white/10 dark:hover:bg-yellow-500/20 dark:text-gray-400 dark:hover:text-yellow-400'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              title="일시정지"
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+            <button
+              onClick={stopMusic}
+              disabled={musicStatus === 'stopped'}
+              className="p-2 rounded-lg bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 dark:bg-white/10 dark:hover:bg-red-500/20 dark:text-gray-400 dark:hover:text-red-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="정지"
+            >
+              <Square className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Status Badges */}
+          <div className="flex gap-4 p-2 glass-panel rounded-xl scale-90 origin-right shadow-sm">
+             <Badge label="라운드" value={`${game.currentRound}/20`} />
+             <Badge label="참가 팀" value={`${activeTeams.length}/${game.teamCount}`} color="text-purple-600 dark:text-ai-secondary" />
+             <Badge label="상태" value={game.gameEnded ? "종료됨" : game.gameStarted ? "진행중" : "대기중"} color={game.gameStarted ? "text-green-600 dark:text-ai-success" : "text-gray-700 dark:text-white"} />
+          </div>
         </div>
       </header>
 
