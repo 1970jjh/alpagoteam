@@ -1534,8 +1534,15 @@ const App: React.FC = () => {
                             </div>
                             <button
                               onClick={() => {
-                                setSelectedGameId(generateGameId(g.companyName));
-                                setActiveTab('JOIN');
+                                // Enter directly as HOST (admin dashboard)
+                                setSession({
+                                  gameId: generateGameId(g.companyName),
+                                  game: g,
+                                  role: 'HOST',
+                                  myTeamId: null,
+                                  myPlayerId: null,
+                                  myPlayerName: null
+                                });
                               }}
                               className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold rounded transition-all"
                             >
