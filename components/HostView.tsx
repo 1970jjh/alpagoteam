@@ -1,9 +1,44 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { GameState, Team } from '../types';
 import { Panel, Button, Badge, Footer } from './UI';
 import { Play, Trophy, Users, Activity, CheckCircle2, Eye, X, ListOrdered, Dices, AlertTriangle } from 'lucide-react';
 import { getScoringGroups, restoreBoardArray } from '../utils';
+
+// Fanfare sound using Web Audio API
+const playFanfare = () => {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+  const playNote = (frequency: number, startTime: number, duration: number, gain: number = 0.3) => {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = frequency;
+    oscillator.type = 'triangle';
+
+    gainNode.gain.setValueAtTime(0, audioContext.currentTime + startTime);
+    gainNode.gain.linearRampToValueAtTime(gain, audioContext.currentTime + startTime + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + startTime + duration);
+
+    oscillator.start(audioContext.currentTime + startTime);
+    oscillator.stop(audioContext.currentTime + startTime + duration);
+  };
+
+  // Triumphant fanfare melody
+  const notes = [
+    { freq: 523.25, time: 0, dur: 0.15 },    // C5
+    { freq: 659.25, time: 0.15, dur: 0.15 }, // E5
+    { freq: 783.99, time: 0.3, dur: 0.15 },  // G5
+    { freq: 1046.5, time: 0.45, dur: 0.4 },  // C6 (longer)
+    { freq: 783.99, time: 0.85, dur: 0.15 }, // G5
+    { freq: 1046.5, time: 1.0, dur: 0.6 },   // C6 (longest)
+  ];
+
+  notes.forEach(note => playNote(note.freq, note.time, note.dur, 0.25));
+};
 
 interface HostViewProps {
   game: GameState;
@@ -38,6 +73,11 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
   const [placementStartTime, setPlacementStartTime] = useState<number | null>(null);
   const [showTimeoutAlert, setShowTimeoutAlert] = useState(false);
   const prevWaitingRef = useRef(game.waitingForPlacements);
+
+  // Dramatic number popup state
+  const [showNumberPopup, setShowNumberPopup] = useState(false);
+  const [popupNumber, setPopupNumber] = useState<number | string | null>(null);
+  const prevCurrentNumber = useRef(game.currentNumber);
 
   // Calculate unplaced teams
   const unplacedTeams = useMemo(() => {
@@ -82,6 +122,24 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
     const intervalId = setInterval(checkTimeout, 1000);
     return () => clearInterval(intervalId);
   }, [placementStartTime, game.waitingForPlacements, unplacedTeams]);
+
+  // Effect for dramatic number popup when a number is submitted
+  useEffect(() => {
+    // Only trigger when currentNumber changes to a new value (not null/undefined)
+    if (game.currentNumber && game.currentNumber !== prevCurrentNumber.current) {
+      setPopupNumber(game.currentNumber);
+      setShowNumberPopup(true);
+      playFanfare();
+
+      // Auto-dismiss after 5 seconds
+      const timer = setTimeout(() => {
+        setShowNumberPopup(false);
+      }, 5000);
+
+      prevCurrentNumber.current = game.currentNumber;
+      return () => clearTimeout(timer);
+    }
+  }, [game.currentNumber]);
 
   // Grid labels (A1-H5) for RANDOM_BOARD mode
   const gridLabels = useMemo(() => {
@@ -336,14 +394,14 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                               onClick={() => !isRevealed && !game.waitingForPlacements && onSelectRandomCell(label, number)}
                               disabled={isRevealed || game.waitingForPlacements}
                               className={`
-                                aspect-square rounded-lg font-bold text-xs transition-all duration-300 transform
+                                aspect-square rounded-lg font-bold transition-all duration-300 transform
                                 ${isRevealed
                                   ? isJoker
                                     ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-lg shadow-yellow-500/50 border border-yellow-300'
                                     : 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-md border border-green-300'
                                   : isPending
                                     ? 'bg-purple-600 text-white border-2 border-purple-300 shadow-lg shadow-purple-500/50 scale-105'
-                                    : 'backdrop-blur-md bg-gradient-to-br from-amber-200/60 via-yellow-300/50 to-amber-400/60 hover:from-amber-300/70 hover:via-yellow-400/60 hover:to-amber-500/70 text-amber-900 cursor-pointer hover:scale-105 active:scale-95 border border-amber-300/80 shadow-lg shadow-amber-200/30'
+                                    : 'bg-gradient-to-br from-yellow-200 via-amber-100 to-yellow-300 hover:from-yellow-300 hover:via-amber-200 hover:to-yellow-400 text-gray-900 cursor-pointer hover:scale-105 active:scale-95 border-2 border-yellow-400/80 shadow-lg shadow-yellow-300/50'
                                 }
                                 ${game.waitingForPlacements && !isRevealed ? 'opacity-50 cursor-not-allowed' : ''}
                               `}
@@ -355,7 +413,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                               ) : isPending ? (
                                 <span className="text-lg font-black animate-pulse">{number}</span>
                               ) : (
-                                <span className="text-[10px] font-bold opacity-80">{label}</span>
+                                <span className="text-xl font-black text-gray-800">{label}</span>
                               )}
                             </button>
                           );
@@ -386,7 +444,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                     {/* Legend */}
                     <div className="flex justify-center gap-3 mt-2 pt-2 border-t border-gray-200 dark:border-white/10 shrink-0">
                       <div className="flex items-center gap-1">
-                        <span className="w-3 h-3 rounded bg-gradient-to-br from-amber-200 via-yellow-300 to-amber-400 border border-amber-300/50"></span>
+                        <span className="w-3 h-3 rounded bg-gradient-to-br from-yellow-200 via-amber-100 to-yellow-300 border-2 border-yellow-400/80"></span>
                         <span className="text-[10px] text-gray-500 dark:text-gray-400">미공개</span>
                       </div>
                       <div className="flex items-center gap-1">
@@ -515,7 +573,7 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
       {viewingTeam && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-4xl bg-white dark:bg-[#0a0a0f] border border-cyan-500/20 dark:border-ai-primary/20 rounded-2xl shadow-2xl p-6 relative">
-            <button 
+            <button
               onClick={() => setViewingTeam(null)}
               className="absolute top-4 right-4 text-gray-500 hover:text-red-500 dark:hover:text-white"
             >
@@ -548,12 +606,12 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                    const colorClass = isScoring ? getGroupColorClass(groupID) : 'bg-white dark:bg-black/60 border-gray-300 dark:border-white/20 text-slate-900 dark:text-white';
 
                    return (
-                     <div 
-                       key={idx} 
+                     <div
+                       key={idx}
                        style={style}
                        className={`
                          relative rounded-lg flex items-center justify-center font-bold z-10 overflow-hidden
-                         ${isFilled 
+                         ${isFilled
                            ? colorClass
                            : 'bg-gray-200 dark:bg-[#0a0a0f] border-gray-300 dark:border-white/30'}
                          ${isFilled ? 'border-2' : 'border'}
@@ -568,6 +626,54 @@ export const HostView: React.FC<HostViewProps> = ({ game, onStartGame, onSelectR
                      </div>
                    );
                 })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DRAMATIC NUMBER POPUP */}
+      {showNumberPopup && popupNumber && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in"
+          onClick={() => setShowNumberPopup(false)}
+        >
+          <div className="relative flex flex-col items-center justify-center animate-bounce-in">
+            {/* Sparkle effects */}
+            <div className="absolute inset-0 -m-20">
+              <div className="absolute top-0 left-1/4 w-4 h-4 bg-yellow-400 rounded-full animate-ping" style={{ animationDelay: '0s' }}></div>
+              <div className="absolute top-1/4 right-0 w-3 h-3 bg-pink-400 rounded-full animate-ping" style={{ animationDelay: '0.2s' }}></div>
+              <div className="absolute bottom-1/4 left-0 w-3 h-3 bg-cyan-400 rounded-full animate-ping" style={{ animationDelay: '0.4s' }}></div>
+              <div className="absolute bottom-0 right-1/4 w-4 h-4 bg-purple-400 rounded-full animate-ping" style={{ animationDelay: '0.6s' }}></div>
+              <div className="absolute top-1/3 left-1/3 w-2 h-2 bg-green-400 rounded-full animate-ping" style={{ animationDelay: '0.3s' }}></div>
+              <div className="absolute bottom-1/3 right-1/3 w-2 h-2 bg-orange-400 rounded-full animate-ping" style={{ animationDelay: '0.5s' }}></div>
+            </div>
+
+            {/* Glow ring */}
+            <div className="absolute w-80 h-80 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 opacity-30 blur-3xl animate-pulse"></div>
+
+            {/* Main number display */}
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="text-2xl font-bold text-white/80 mb-4 tracking-widest animate-pulse">
+                🎉 숫자 출제 🎉
+              </div>
+              <div
+                className={`
+                  text-[12rem] font-black leading-none
+                  ${popupNumber === '★'
+                    ? 'text-yellow-400 drop-shadow-[0_0_60px_rgba(250,204,21,0.8)] animate-pulse'
+                    : 'text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-500 drop-shadow-[0_0_60px_rgba(0,242,255,0.8)]'}
+                `}
+                style={{
+                  textShadow: popupNumber === '★'
+                    ? '0 0 80px rgba(250,204,21,0.9), 0 0 120px rgba(250,204,21,0.6)'
+                    : '0 0 80px rgba(0,242,255,0.9), 0 0 120px rgba(0,242,255,0.6)'
+                }}
+              >
+                {popupNumber}
+              </div>
+              <div className="mt-6 text-lg text-white/60 font-mono">
+                클릭하면 닫힙니다
+              </div>
             </div>
           </div>
         </div>
